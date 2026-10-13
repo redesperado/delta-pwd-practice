@@ -3,13 +3,13 @@
  * 采用 Web Audio API 进行频带滤波、能量检测、滞后阈值触发与摩斯时序状态机解码
  */
 
-import { CODE_TO_DIGIT } from './morse.js';
+import { CODE_TO_DIGIT, MORSE_DIGITS } from './morse.js';
 
 export class MorseAudioDecoder {
   constructor(options = {}) {
     this.targetFreq = options.targetFreq || 750; // 目标中心频率 (Hz)，三角洲蜂鸣通常在 750Hz 左右
     this.filterQ = options.filterQ || 6.0;       // 窄带滤波 Q 值
-    this.threshold = options.threshold || 0.20; // 能量触发阈值 (0.01 ~ 1.0)
+    this.threshold = options.threshold || 0.14; // 能量触发阈值 (0.01 ~ 1.0，降低默认门槛提高微弱声音检出率)
     this.noiseFloor = 0.02;                     // 底噪基准线
 
     // 回调事件
@@ -129,6 +129,69 @@ export class MorseAudioDecoder {
         throw new Error('麦克风权限被拒绝，请在浏览器地址栏允许麦克风访问权限。');
       }
       throw err;
+    }
+  }
+
+  /**
+   * 启动内置模拟自测模式 (合成 750Hz 382 密码蜂鸣，无需打开游戏即可验证解码器与示波器)
+   */
+  async startSelfTest(code = '382') {
+    this.stop();
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    this.audioCtx = new AudioContextClass();
+    if (this.audioCtx.state === 'suspended') {
+      await this.audioCtx.resume();
+    }
+
+    const dest = this.audioCtx.createMediaStreamDestination();
+    this.mediaStream = dest.stream;
+    this.sourceType = 'selftest';
+    await this.initAudioPipeline();
+    this.setStatus('listening');
+
+    this.playSyntheticTestBeeps(code, dest);
+  }
+
+  /**
+   * 生成合成测试音频：同时输出到扬声器 (用户可听) 与 MediaStreamDestination (供示波器和解码器分析)
+   */
+  playSyntheticTestBeeps(code, destNode) {
+    if (!this.audioCtx) return;
+    const ctx = this.audioCtx;
+    let t = ctx.currentTime + 0.15;
+    const dot = 0.125;
+    const dash = dot * 3;
+
+    for (let i = 0; i < code.length; i++) {
+      const digit = code[i];
+      const morseInfo = MORSE_DIGITS[digit];
+      if (!morseInfo) continue;
+      const symbols = morseInfo.code;
+
+      for (let s = 0; s < symbols.length; s++) {
+        const sym = symbols[s];
+        const dur = (sym === '·') ? dot : dash;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(this.targetFreq, t);
+
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.linearRampToValueAtTime(0.7, t + 0.005);
+        gain.gain.setValueAtTime(0.7, t + dur - 0.005);
+        gain.gain.linearRampToValueAtTime(0.0001, t + dur);
+
+        osc.connect(gain);
+        gain.connect(destNode);
+        gain.connect(ctx.destination);
+
+        osc.start(t);
+        osc.stop(t + dur);
+
+        t += dur + dot;
+      }
+      t += dot * 2;
     }
   }
 
@@ -287,6 +350,13 @@ export class MorseAudioDecoder {
       const silenceDuration = now - this.lowStartTime;
       this.handleSilenceEnd(silenceDuration);
 
+      // 若上一轮完整密码已结算完毕且已静音超 1.5s，新声音响起代表新的一轮开始，重置前一轮
+      if (this.isSequenceReported && silenceDuration > 1500) {
+        this.decodedDigits = '';
+        this.currentSymbols = '';
+        this.isSequenceReported = false;
+      }
+
       this.isSignalHigh = true;
       this.highStartTime = now;
       this.lastStateChangeTime = now;
@@ -355,7 +425,6 @@ export class MorseAudioDecoder {
   handleSilenceEnd(silenceDurationMs) {
     // 如果之前点划未满5个但遇到明显长停顿，说明可能有漏判或杂音，尝试容错
     if (this.currentSymbols.length > 0 && silenceDurationMs > 600) {
-      // 超过 600ms 停顿应属于字符间停顿
       this.commitCurrentDigit();
     }
   }
@@ -370,7 +439,7 @@ export class MorseAudioDecoder {
     }
 
     // 2. 长空白判别律：三角洲每轮播完有一段约 2.0s ~ 3.0s 的绝对长空白
-    if (this.decodedDigits.length >= 3 && silenceDurationMs > 2100 && !this.isSequenceReported) {
+    if (this.decodedDigits.length >= 3 && silenceDurationMs > 1800 && !this.isSequenceReported) {
       this.isSequenceReported = true;
       if (this.onSequenceComplete) {
         this.onSequenceComplete(this.decodedDigits);
@@ -378,7 +447,7 @@ export class MorseAudioDecoder {
     }
 
     // 若静音超过 4 秒且无新声音，重置轮次状态以准备下一轮
-    if (silenceDurationMs > 4500 && this.isSequenceReported) {
+    if (silenceDurationMs > 4000 && this.isSequenceReported) {
       this.decodedDigits = '';
       this.isSequenceReported = false;
     }
@@ -390,10 +459,19 @@ export class MorseAudioDecoder {
   commitCurrentDigit() {
     if (!this.currentSymbols) return;
 
-    const code = this.currentSymbols;
+    let code = this.currentSymbols;
     this.currentSymbols = '';
 
-    const digit = CODE_TO_DIGIT[code];
+    // 若符号因杂音毛刺超过 5 位，尝试截取后 5 位容错匹配
+    let digit = CODE_TO_DIGIT[code];
+    if (digit === undefined && code.length > 5) {
+      const suffix = code.slice(-5);
+      if (CODE_TO_DIGIT[suffix] !== undefined) {
+        digit = CODE_TO_DIGIT[suffix];
+        code = suffix;
+      }
+    }
+
     if (digit !== undefined) {
       this.decodedDigits += digit;
       this.isSequenceReported = false;

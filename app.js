@@ -43,6 +43,7 @@ class DeltaMorseTrainerApp {
     this.realInputCode = '';
     this.realStartTime = 0;
     this.realTryCount = 0;
+    this.isRealCombatPwdRevealed = false;
 
     // 单字速记模式状态
     this.singleTargetDigit = '';
@@ -138,6 +139,10 @@ class DeltaMorseTrainerApp {
       btnPlayPause: document.getElementById('btn-play-pause'),
       btnNextDoor: document.getElementById('btn-next-door'),
       btnReplay: document.getElementById('btn-replay'),
+      btnRevealPwd: document.getElementById('btn-reveal-pwd'),
+      realCombatRevealBox: document.getElementById('real-combat-reveal-box'),
+      revealPwdCode: document.getElementById('reveal-pwd-code'),
+      revealDetailsGrid: document.getElementById('reveal-details-grid'),
       btnLen3: document.getElementById('btn-len-3'),
       btnLen4: document.getElementById('btn-len-4'),
 
@@ -212,6 +217,7 @@ class DeltaMorseTrainerApp {
       decoderResultMeta: document.getElementById('decoder-result-meta'),
       btnCopyDecoderCode: document.getElementById('btn-copy-decoder-code'),
       btnClearDecoderCode: document.getElementById('btn-clear-decoder-code'),
+      btnDecoderSelftest: document.getElementById('btn-decoder-selftest'),
       decoderHistoryList: document.getElementById('decoder-history-list')
     };
   }
@@ -305,6 +311,7 @@ class DeltaMorseTrainerApp {
     this.dom.btnPlayPause.addEventListener('click', () => this.togglePlayback());
     this.dom.btnReplay.addEventListener('click', () => this.replayCurrent());
     this.dom.btnNextDoor.addEventListener('click', () => this.startRealCombatRound(true));
+    if (this.dom.btnRevealPwd) this.dom.btnRevealPwd.addEventListener('click', () => this.toggleRevealPassword());
 
     // 单字模式控制
     this.dom.singleReplayBtn.addEventListener('click', () => this.playSingleDigit());
@@ -538,11 +545,60 @@ class DeltaMorseTrainerApp {
 
     this.renderCodeSlots();
     this.renderSymbolGuideBadges();
+    if (this.isRealCombatPwdRevealed) {
+      this.renderRevealDetails();
+    }
     if (autoPlay) {
       this.replayCurrent();
     } else {
       this.updatePlayPauseBtnState(false);
     }
+  }
+
+  toggleRevealPassword() {
+    this.isRealCombatPwdRevealed = !this.isRealCombatPwdRevealed;
+    this.updateRevealPasswordUI();
+  }
+
+  updateRevealPasswordUI() {
+    if (!this.dom.realCombatRevealBox) return;
+    if (this.isRealCombatPwdRevealed) {
+      this.dom.realCombatRevealBox.style.display = 'block';
+      if (this.dom.btnRevealPwd) {
+        this.dom.btnRevealPwd.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+          👁️ 隐藏密码
+        `;
+        this.dom.btnRevealPwd.classList.add('active');
+      }
+      this.renderRevealDetails();
+    } else {
+      this.dom.realCombatRevealBox.style.display = 'none';
+      if (this.dom.btnRevealPwd) {
+        this.dom.btnRevealPwd.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+          👁️ 显示密码 (新手对照)
+        `;
+        this.dom.btnRevealPwd.classList.remove('active');
+      }
+    }
+  }
+
+  renderRevealDetails() {
+    if (!this.realTargetCode || !this.dom.revealPwdCode || !this.dom.revealDetailsGrid) return;
+    this.dom.revealPwdCode.textContent = this.realTargetCode.split('').join(' ');
+    const cardsHtml = this.realTargetCode.split('').map((digit, idx) => {
+      const meta = MORSE_DIGITS[digit] || { code: '-----', tip: '未知' };
+      return `
+        <div class="reveal-digit-card">
+          <div class="reveal-digit-idx">第 ${idx + 1} 位密码</div>
+          <div class="reveal-digit-char">${digit}</div>
+          <div class="reveal-digit-morse">${meta.code}</div>
+          <div class="reveal-digit-mnemonic">${meta.tip}</div>
+        </div>
+      `;
+    }).join('');
+    this.dom.revealDetailsGrid.innerHTML = cardsHtml;
   }
 
   renderCodeSlots() {
@@ -1414,10 +1470,52 @@ class DeltaMorseTrainerApp {
       });
     }
 
+    // 自测模拟蜂鸣按钮
+    if (this.dom.btnDecoderSelftest) {
+      this.dom.btnDecoderSelftest.addEventListener('click', () => {
+        this.triggerDecoderSelfTest();
+      });
+    }
+
     // 初始化示波器 Canvas 上下文
     if (this.dom.decoderCanvas) {
       this.decoderCanvasCtx = this.dom.decoderCanvas.getContext('2d');
     }
+  }
+
+  async triggerDecoderSelfTest() {
+    if (this.dom.btnDecoderSelftest) {
+      this.dom.btnDecoderSelftest.disabled = true;
+      this.dom.btnDecoderSelftest.innerHTML = `🔊 正在播放自测信号 (382)...`;
+    }
+
+    const testCode = '382';
+
+    try {
+      if (this.decoder.isRunning && this.decoder.sourceType !== 'selftest') {
+        this.showToast('🔊 正在通过声卡播放 750Hz 382 蜂鸣，检验当前采集源...');
+        await audioEngine.ensureContext();
+        const origFreq = audioEngine.frequency;
+        audioEngine.setFrequency(750);
+        const events = codeToTimingEvents(testCode);
+        audioEngine.playSequence(events, false);
+        setTimeout(() => {
+          audioEngine.setFrequency(origFreq);
+        }, 6000);
+      } else {
+        this.showToast('🧪 启动内置自测管线，播放 750Hz 382 蜂鸣并实时分析...');
+        await this.decoder.startSelfTest(testCode);
+      }
+    } catch (err) {
+      this.showToast(`自测启动失败: ${err.message}`, 4000);
+    }
+
+    setTimeout(() => {
+      if (this.dom.btnDecoderSelftest) {
+        this.dom.btnDecoderSelftest.disabled = false;
+        this.dom.btnDecoderSelftest.innerHTML = `🔊 播放自测音频 (382)`;
+      }
+    }, 6500);
   }
 
   updateDecoderStatusUI(status) {
@@ -1426,8 +1524,13 @@ class DeltaMorseTrainerApp {
       this.dom.decoderStatusPill.classList.toggle('listening', isListening);
     }
     if (this.dom.decoderStatusText) {
+      let sourceName = '麦克风';
+      if (this.decoder) {
+        if (this.decoder.sourceType === 'system') sourceName = '系统音频';
+        else if (this.decoder.sourceType === 'selftest') sourceName = '自测模拟源';
+      }
       this.dom.decoderStatusText.textContent = isListening 
-        ? `🟢 实时监听中 (${this.decoder && this.decoder.sourceType === 'system' ? '系统音频' : '麦克风'})`
+        ? `🟢 实时监听中 (${sourceName})`
         : '待命就绪 · 待选择音频源';
     }
     if (this.dom.btnStopAudioDecoder) {

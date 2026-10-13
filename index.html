@@ -43,7 +43,7 @@
       </button>
       <button id="tab-audio-decoder" class="tab-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.76-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-        🎙️ 游戏声音实时破译
+        🎙️ 游戏声音实时破译 <span class="badge-beta">测试中</span>
       </button>
     </nav>
 
@@ -167,7 +167,7 @@
 
               <!-- 模块5：游戏声音实时破译 -->
               <div class="action-card" id="card-action-decoder">
-                <div class="action-card-badge" style="background: rgba(0, 255, 102, 0.15); color: var(--delta-green); border-color: rgba(0, 255, 102, 0.4);">实战利器</div>
+                <div class="action-card-badge badge-beta-card">测试中 · BETA</div>
                 <div class="action-icon">🎙️</div>
                 <h4>游戏声音实时破译</h4>
                 <p>捕获游戏声音或麦克风收音，高精度窄带滤波抗噪，毫秒级直接将摩斯电码翻译为明文密码并一键复制！</p>
@@ -381,10 +381,26 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
                 重新聆听 (Space)
               </button>
+              <button id="btn-reveal-pwd" class="btn-secondary" title="初学者对照与查看密码明文">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                👁️ 显示密码 (新手对照)
+              </button>
               <button id="btn-next-door" class="btn-secondary">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
                 换一道门锁
               </button>
+            </div>
+
+            <!-- 新手密码展示与口诀对照板 (默认折叠) -->
+            <div id="real-combat-reveal-box" class="reveal-pwd-box" style="display: none;">
+              <div class="reveal-header">
+                <span class="reveal-title">🎯 当前门禁密码明文答案</span>
+                <span id="reveal-pwd-code" class="reveal-code">---</span>
+                <span class="reveal-tip">初学者请对照下方点划边听边记：</span>
+              </div>
+              <div id="reveal-details-grid" class="reveal-details-grid">
+                <!-- 动态注入每位数字对应的点划与速记口诀 -->
+              </div>
             </div>
 
             <!-- 拟真实体战术小键盘 -->
@@ -571,7 +587,7 @@
         <div class="card-header">
           <h2>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.76-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-            战地实时听音破译 // LIVE AUDIO MORSE DECODER
+            战地实时听音破译 // LIVE AUDIO MORSE DECODER <span class="badge-beta-lg">BETA · 测试中</span>
           </h2>
           <div class="decoder-status-pill" id="decoder-status-pill">
             <span class="indicator-dot" id="decoder-status-dot"></span>
@@ -581,6 +597,20 @@
 
         <div class="card-body">
           <div class="decoder-container">
+
+            <!-- 实验性测试中公告与自测按钮 -->
+            <div class="decoder-beta-banner">
+              <div class="beta-banner-left">
+                <span class="beta-icon">⚠️</span>
+                <div class="beta-content">
+                  <div class="beta-title">本功能目前处于【公测验证中 (BETA)】</div>
+                  <div class="beta-desc">游戏内受队友开麦、枪炮环境杂音或不同声卡输入增益影响可能出现漏判。建议优先使用【系统音频内录】并佩戴耳机，或点击右侧自测按钮验证解码器。</div>
+                </div>
+              </div>
+              <button id="btn-decoder-selftest" class="btn-secondary beta-selftest-btn" title="无需进游戏，播放一段模拟 750Hz 382 蜂鸣测试当前破译器">
+                🔊 播放自测音频 (382)
+              </button>
+            </div>
 
             <!-- 音频采集源选择控制条 -->
             <div class="decoder-source-panel">
@@ -666,9 +696,9 @@
               <div class="param-group">
                 <div class="param-header">
                   <span>触发灵敏度阈值</span>
-                  <span id="val-decoder-threshold" style="color: var(--delta-amber); font-family: var(--font-mono);">20%</span>
+                  <span id="val-decoder-threshold" style="color: var(--delta-amber); font-family: var(--font-mono);">14%</span>
                 </div>
-                <input type="range" id="slider-decoder-threshold" min="5" max="80" step="1" value="20">
+                <input type="range" id="slider-decoder-threshold" min="5" max="80" step="1" value="14">
                 <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">
                   环境杂音大时请往右调高阈值；声音微弱时请往左调低。
                 </div>

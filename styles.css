@@ -2275,3 +2275,198 @@ input:checked + .slider:before {
   padding: 12px;
 }
 
+/* ==========================================================================
+   测试中徽标与实验性功能状态
+   ========================================================================== */
+
+.badge-beta {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255, 183, 3, 0.18);
+  color: var(--delta-amber);
+  border: 1px solid rgba(255, 183, 3, 0.5);
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.badge-beta-lg {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 183, 3, 0.2);
+  color: var(--delta-amber);
+  border: 1px solid rgba(255, 183, 3, 0.6);
+  margin-left: 10px;
+  letter-spacing: 1px;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.action-card-badge.badge-beta-card {
+  background: rgba(255, 183, 3, 0.18) !important;
+  color: var(--delta-amber) !important;
+  border-color: rgba(255, 183, 3, 0.5) !important;
+}
+
+.decoder-beta-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 183, 3, 0.08);
+  border: 1px solid rgba(255, 183, 3, 0.35);
+  border-left: 4px solid var(--delta-amber);
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.beta-banner-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.beta-icon {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.beta-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--delta-amber);
+  margin-bottom: 2px;
+}
+
+.beta-desc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.beta-selftest-btn {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 8px 16px;
+  border-color: rgba(255, 183, 3, 0.4);
+  color: var(--delta-amber);
+  background: rgba(255, 183, 3, 0.12);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+.beta-selftest-btn:hover {
+  background: rgba(255, 183, 3, 0.25);
+  border-color: var(--delta-amber);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .decoder-beta-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .beta-selftest-btn {
+    text-align: center;
+  }
+}
+
+/* ==========================================================================
+   实战开门模式 - 新手密码查看与口诀对照板
+   ========================================================================== */
+
+.reveal-pwd-box {
+  background: rgba(13, 20, 28, 0.95);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-left: 4px solid var(--delta-cyan);
+  border-radius: 4px;
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: fadeInDown 0.2s ease-out;
+}
+
+.reveal-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.reveal-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.reveal-code {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--delta-cyan);
+  letter-spacing: 6px;
+  background: rgba(0, 229, 255, 0.1);
+  padding: 2px 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+}
+
+.reveal-tip {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.reveal-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.reveal-digit-card {
+  background: #0d131a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reveal-digit-idx {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.reveal-digit-char {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--delta-green);
+}
+
+.reveal-digit-morse {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--delta-cyan);
+  letter-spacing: 2px;
+}
+
+.reveal-digit-mnemonic {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+
