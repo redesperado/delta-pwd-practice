@@ -34,6 +34,12 @@
   margin: 0;
   padding: 0;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input, select {
+  touch-action: manipulation;
 }
 
 body {
@@ -1827,10 +1833,17 @@ input:checked + .slider:before {
   transform: translateX(-50%) translateY(0);
 }
 
-/* 响应式调整 */
+/* ==========================================================================
+   响应式多端适配 (Mobile & Tablet Responsive System)
+   严格限定在 @media 内，绝不影响桌面端展示
+   ========================================================================== */
+
+/* --- 平板与中等屏幕 (<= 992px) --- */
 @media (max-width: 992px) {
   .app-container {
     grid-template-columns: 1fr;
+    padding: 16px 16px;
+    gap: 18px;
   }
   .sidebar {
     order: 2;
@@ -1856,6 +1869,400 @@ input:checked + .slider:before {
   }
   .daily-card-actions button {
     flex: 1;
+  }
+}
+
+/* --- 移动端横竖屏与手机设备 (<= 860px) --- */
+@media (max-width: 860px) {
+  /* 顶部导航栏自适应与轻量化 */
+  .header-bar {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    column-gap: 12px;
+  }
+  .brand-section {
+    order: 1;
+    gap: 8px;
+  }
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+  .brand-title h1 {
+    font-size: 13.5px;
+    letter-spacing: 1px;
+  }
+  .brand-title p {
+    display: none; /* 移动端隐藏冗余小标题，大幅节省垂直屏显空间 */
+  }
+  .header-actions {
+    order: 2;
+    margin-left: auto;
+  }
+  .intel-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  /* 手机端横向原生级顺滑滚动标签栏 */
+  .nav-tabs {
+    order: 3;
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+    padding: 4px 2px;
+    margin-top: 2px;
+  }
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tab-btn {
+    flex: 0 0 auto;
+    padding: 7px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
+
+/* --- 常见手机设备 (<= 768px) --- */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 10px 8px;
+    gap: 14px;
+  }
+  .card-header {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .card-header h2 {
+    font-size: 13.5px;
+  }
+  .card-body {
+    padding: 14px 10px;
+  }
+
+  /* 首页作战大厅移动端微调 */
+  .home-hero-banner {
+    padding: 14px 14px;
+  }
+  .home-hero-content h2 {
+    font-size: 17px;
+    line-height: 1.4;
+  }
+  .home-hero-content p {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+  .hero-meta-row {
+    gap: 6px;
+  }
+  .meta-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+  }
+  .action-card {
+    padding: 14px 14px;
+  }
+  .action-card h4 {
+    font-size: 15px;
+  }
+  .action-card p {
+    font-size: 11.5px;
+    margin-bottom: 12px;
+  }
+  .action-btn-row button {
+    padding: 7px 12px;
+    font-size: 11.5px;
+  }
+
+  /* 每日密码卡片 */
+  .a1b1b2c1-banner {
+    padding: 12px 14px;
+  }
+  .a1-title {
+    font-size: 13px;
+  }
+  .a1-desc {
+    font-size: 11.5px;
+  }
+  .daily-controls-bar {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .daily-date-status {
+    width: 100%;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .daily-actions-btns {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+  .daily-actions-btns button {
+    flex: 1;
+    justify-content: center;
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+  .daily-card {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .daily-card-title {
+    font-size: 14px;
+  }
+  .daily-code-box .code-text {
+    font-size: 22px;
+    letter-spacing: 3px;
+  }
+
+  /* 实时破译视图移动端 */
+  .decoder-container {
+    gap: 12px;
+  }
+  .decoder-beta-banner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .beta-selftest-btn {
+    text-align: center;
+    width: 100%;
+  }
+  .decoder-source-cards {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .source-card {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .source-icon {
+    font-size: 22px;
+  }
+  .source-title {
+    font-size: 12.5px;
+  }
+  .source-desc {
+    font-size: 10px;
+  }
+  .canvas-wrapper {
+    height: 85px;
+  }
+  .decoder-output-board {
+    padding: 14px 12px;
+  }
+  .decoded-lcd-screen {
+    padding: 12px 14px;
+  }
+  .lcd-code {
+    font-size: 32px;
+    letter-spacing: 6px;
+  }
+  .output-actions-row {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  .output-actions-row button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* 情报手册模态框移动端适配 */
+  .modal-overlay {
+    padding: 8px;
+  }
+  .intel-modal {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 6px;
+  }
+  .modal-header {
+    padding: 12px 14px;
+  }
+  .modal-header h3 {
+    font-size: 13px;
+  }
+  .modal-content {
+    padding: 14px 12px;
+    gap: 16px;
+  }
+  .room-detail {
+    font-size: 11.5px;
+  }
+
+  /* 底部指示条移动端折叠 */
+  .footer-bar {
+    flex-direction: column;
+    padding: 10px 12px;
+    gap: 6px;
+    text-align: center;
+  }
+  .footer-bar > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+  }
+}
+
+/* --- 小屏手机专精 (<= 600px / <= 480px) --- */
+@media (max-width: 600px) {
+  /* 密码锁与键盘交互界面 */
+  .keypad-terminal {
+    gap: 14px;
+    width: 100%;
+  }
+  .terminal-screen {
+    padding: 12px 10px;
+    width: 100%;
+  }
+  .screen-hud-top {
+    font-size: 10px;
+  }
+  .code-display-slots {
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .slot {
+    width: 46px;
+    height: 56px;
+    font-size: 28px;
+  }
+  .screen-message {
+    font-size: 11px;
+  }
+  .rhythm-visualizer {
+    width: 100%;
+    padding: 10px 12px;
+  }
+  .playback-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .playback-controls button {
+    width: 100%;
+    justify-content: center;
+    padding: 9px 6px;
+    font-size: 11.5px;
+  }
+  .tactical-keypad {
+    width: 100%;
+    max-width: 320px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+  .key-btn {
+    height: 52px;
+    font-size: 18px;
+  }
+  .key-btn span.sub {
+    font-size: 8.5px;
+  }
+  .reveal-pwd-box {
+    padding: 10px 12px;
+  }
+  .reveal-code {
+    font-size: 18px;
+    padding: 2px 8px;
+  }
+  .reveal-details-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  /* 单字闯关 */
+  .single-mode-container {
+    gap: 14px;
+    width: 100%;
+  }
+  .combo-dashboard {
+    padding: 8px 6px;
+    gap: 6px;
+    width: 100%;
+  }
+  .stat-val {
+    font-size: 18px;
+  }
+  .stat-lbl {
+    font-size: 9.5px;
+  }
+  .single-prompt-screen {
+    width: 100%;
+    height: 130px;
+    gap: 8px;
+  }
+  .audio-waveform-icon {
+    font-size: 32px;
+  }
+  #single-prompt-message {
+    font-size: 12px;
+  }
+  .single-selection-grid {
+    width: 100%;
+    max-width: 360px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .digit-choice-btn {
+    height: 48px;
+    font-size: 18px;
+  }
+
+  /* 终端速算 */
+  .terminal-hack-container {
+    gap: 14px;
+    width: 100%;
+  }
+  .hack-monitor-screen {
+    width: 100%;
+    padding: 12px 10px;
+  }
+  .hack-cards-row {
+    gap: 6px;
+    margin: 8px 0;
+    width: 100%;
+  }
+  .hack-card {
+    padding: 8px 4px;
+    gap: 4px;
+  }
+  .hack-card-tag {
+    font-size: 9px;
+  }
+  .hack-card-morse {
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+  .hack-explain-row {
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+
+  /* 首页每日密码概览网格 */
+  .quick-passwords-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .quick-card {
+    padding: 8px 10px;
+  }
+  .quick-card-code {
+    font-size: 16px;
   }
 }
 
@@ -2276,51 +2683,16 @@ input:checked + .slider:before {
 }
 
 /* ==========================================================================
-   测试中徽标与实验性功能状态
+   破译使用提示横幅与自测工具样式
    ========================================================================== */
-
-.badge-beta {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: rgba(255, 183, 3, 0.18);
-  color: var(--delta-amber);
-  border: 1px solid rgba(255, 183, 3, 0.5);
-  margin-left: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  vertical-align: middle;
-  display: inline-block;
-}
-
-.badge-beta-lg {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(255, 183, 3, 0.2);
-  color: var(--delta-amber);
-  border: 1px solid rgba(255, 183, 3, 0.6);
-  margin-left: 10px;
-  letter-spacing: 1px;
-  vertical-align: middle;
-  display: inline-block;
-}
-
-.action-card-badge.badge-beta-card {
-  background: rgba(255, 183, 3, 0.18) !important;
-  color: var(--delta-amber) !important;
-  border-color: rgba(255, 183, 3, 0.5) !important;
-}
 
 .decoder-beta-banner {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(255, 183, 3, 0.08);
-  border: 1px solid rgba(255, 183, 3, 0.35);
-  border-left: 4px solid var(--delta-amber);
+  background: rgba(0, 229, 255, 0.06);
+  border: 1px solid rgba(0, 229, 255, 0.28);
+  border-left: 4px solid var(--delta-cyan);
   border-radius: 4px;
   padding: 12px 16px;
   margin-bottom: 16px;
@@ -2341,7 +2713,7 @@ input:checked + .slider:before {
 .beta-title {
   font-size: 12px;
   font-weight: 700;
-  color: var(--delta-amber);
+  color: var(--delta-cyan);
   margin-bottom: 2px;
 }
 
@@ -2355,28 +2727,18 @@ input:checked + .slider:before {
   white-space: nowrap;
   font-size: 12px;
   padding: 8px 16px;
-  border-color: rgba(255, 183, 3, 0.4);
-  color: var(--delta-amber);
-  background: rgba(255, 183, 3, 0.12);
+  border-color: rgba(0, 229, 255, 0.4);
+  color: var(--delta-cyan);
+  background: rgba(0, 229, 255, 0.1);
   cursor: pointer;
   transition: all 0.2s ease;
   font-weight: 600;
 }
 
 .beta-selftest-btn:hover {
-  background: rgba(255, 183, 3, 0.25);
-  border-color: var(--delta-amber);
+  background: rgba(0, 229, 255, 0.22);
+  border-color: var(--delta-cyan);
   color: #fff;
-}
-
-@media (max-width: 768px) {
-  .decoder-beta-banner {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .beta-selftest-btn {
-    text-align: center;
-  }
 }
 
 /* ==========================================================================

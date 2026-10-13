@@ -43,7 +43,7 @@
       </button>
       <button id="tab-audio-decoder" class="tab-btn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.76-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-        🎙️ 游戏声音实时破译 <span class="badge-beta">测试中</span>
+        🎙️ 游戏声音实时破译
       </button>
     </nav>
 
@@ -167,7 +167,7 @@
 
               <!-- 模块5：游戏声音实时破译 -->
               <div class="action-card" id="card-action-decoder">
-                <div class="action-card-badge badge-beta-card">测试中 · BETA</div>
+                <div class="action-card-badge" style="background: rgba(0, 255, 102, 0.15); color: var(--delta-green); border-color: rgba(0, 255, 102, 0.4);">实战利器</div>
                 <div class="action-icon">🎙️</div>
                 <h4>游戏声音实时破译</h4>
                 <p>捕获游戏声音或麦克风收音，高精度窄带滤波抗噪，毫秒级直接将摩斯电码翻译为明文密码并一键复制！</p>
@@ -587,7 +587,7 @@
         <div class="card-header">
           <h2>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.76-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-            战地实时听音破译 // LIVE AUDIO MORSE DECODER <span class="badge-beta-lg">BETA · 测试中</span>
+            战地实时听音破译 // LIVE AUDIO MORSE DECODER
           </h2>
           <div class="decoder-status-pill" id="decoder-status-pill">
             <span class="indicator-dot" id="decoder-status-dot"></span>
@@ -598,13 +598,13 @@
         <div class="card-body">
           <div class="decoder-container">
 
-            <!-- 实验性测试中公告与自测按钮 -->
+            <!-- 破译使用指南与自测工具 -->
             <div class="decoder-beta-banner">
               <div class="beta-banner-left">
-                <span class="beta-icon">⚠️</span>
+                <span class="beta-icon">💡</span>
                 <div class="beta-content">
-                  <div class="beta-title">本功能目前处于【公测验证中 (BETA)】</div>
-                  <div class="beta-desc">游戏内受队友开麦、枪炮环境杂音或不同声卡输入增益影响可能出现漏判。建议优先使用【系统音频内录】并佩戴耳机，或点击右侧自测按钮验证解码器。</div>
+                  <div class="beta-title">破译使用提示</div>
+                  <div class="beta-desc">受队友开麦、环境枪炮杂音或声卡输入增益影响可能出现干扰。建议优先使用【系统音频内录】并佩戴耳机，也可点击右侧自测按钮验证解码。</div>
                 </div>
               </div>
               <button id="btn-decoder-selftest" class="btn-secondary beta-selftest-btn" title="无需进游戏，播放一段模拟 750Hz 382 蜂鸣测试当前破译器">
