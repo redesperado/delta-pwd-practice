@@ -12,13 +12,19 @@ import {
   DAILY_PASSWORDS_CONFIG
 } from './morse.js';
 import { audioEngine } from './audio.js';
+import { MorseAudioDecoder } from './decoder.js';
 
 class DeltaMorseTrainerApp {
   constructor() {
     // 当前全局模式配置 (默认作战大厅首页，绝无自动发声)
-    this.currentMode = 'home'; // 'home' | 'dailyPasswords' | 'realCombat' | 'singleFlash' | 'terminalHack'
+    this.currentMode = 'home'; // 'home' | 'dailyPasswords' | 'realCombat' | 'singleFlash' | 'terminalHack' | 'audioDecoder'
     this.codeLength = 3;       // 密码位数：默认3位，可选4位
     this.isVisualAssist = true;// 视觉节奏辅助（可关闭纯盲听）
+
+    // 实时游戏声音破译状态
+    this.decoder = null;
+    this.decoderCanvasCtx = null;
+    this.decoderHistory = [];
 
     // 每日密码与日期状态
     this.todayDateStr = '';
@@ -70,6 +76,7 @@ class DeltaMorseTrainerApp {
     this.renderIntelModal();
     this.renderHomeView();
     this.renderDailyPasswordsView();
+    this.initAudioDecoder();
     this.switchMode('home'); // 初始进入首页，绝对静音加载
   }
 
@@ -96,6 +103,7 @@ class DeltaMorseTrainerApp {
       tabRealCombat: document.getElementById('tab-real-combat'),
       tabSingleFlash: document.getElementById('tab-single-flash'),
       tabTerminalHack: document.getElementById('tab-terminal-hack'),
+      tabAudioDecoder: document.getElementById('tab-audio-decoder'),
 
       // 主视图容器
       viewHome: document.getElementById('view-home'),
@@ -103,6 +111,7 @@ class DeltaMorseTrainerApp {
       viewRealCombat: document.getElementById('view-real-combat'),
       viewSingleFlash: document.getElementById('view-single-flash'),
       viewTerminalHack: document.getElementById('view-terminal-hack'),
+      viewAudioDecoder: document.getElementById('view-audio-decoder'),
 
       // 首页 DOM
       homeTodayDate: document.getElementById('home-today-date'),
@@ -179,7 +188,31 @@ class DeltaMorseTrainerApp {
       intelModalContent: document.getElementById('intel-modal-content'),
 
       // 悬浮战术 Toast
-      tacticalToast: document.getElementById('tactical-toast')
+      tacticalToast: document.getElementById('tactical-toast'),
+
+      // 游戏声音实时破译 DOM
+      decoderStatusPill: document.getElementById('decoder-status-pill'),
+      decoderStatusDot: document.getElementById('decoder-status-dot'),
+      decoderStatusText: document.getElementById('decoder-status-text'),
+      btnStartSystemAudio: document.getElementById('btn-start-system-audio'),
+      btnStartMicAudio: document.getElementById('btn-start-mic-audio'),
+      btnStopAudioDecoder: document.getElementById('btn-stop-audio-decoder'),
+      statDecoderHz: document.getElementById('stat-decoder-hz'),
+      statDecoderSignal: document.getElementById('stat-decoder-signal'),
+      decoderCanvas: document.getElementById('decoder-canvas'),
+      decoderEnergyFill: document.getElementById('decoder-energy-fill'),
+      decoderThresholdMarker: document.getElementById('decoder-threshold-marker'),
+      decoderEnergyVal: document.getElementById('decoder-energy-val'),
+      sliderDecoderFreq: document.getElementById('slider-decoder-freq'),
+      valDecoderFreq: document.getElementById('val-decoder-freq'),
+      sliderDecoderThreshold: document.getElementById('slider-decoder-threshold'),
+      valDecoderThreshold: document.getElementById('val-decoder-threshold'),
+      decoderLiveSymbols: document.getElementById('decoder-live-symbols'),
+      decoderResultCode: document.getElementById('decoder-result-code'),
+      decoderResultMeta: document.getElementById('decoder-result-meta'),
+      btnCopyDecoderCode: document.getElementById('btn-copy-decoder-code'),
+      btnClearDecoderCode: document.getElementById('btn-clear-decoder-code'),
+      decoderHistoryList: document.getElementById('decoder-history-list')
     };
   }
 
@@ -243,6 +276,7 @@ class DeltaMorseTrainerApp {
     this.dom.tabRealCombat.addEventListener('click', () => this.switchMode('realCombat'));
     this.dom.tabSingleFlash.addEventListener('click', () => this.switchMode('singleFlash'));
     this.dom.tabTerminalHack.addEventListener('click', () => this.switchMode('terminalHack'));
+    if (this.dom.tabAudioDecoder) this.dom.tabAudioDecoder.addEventListener('click', () => this.switchMode('audioDecoder'));
 
     // 首页快捷操作
     if (this.dom.btnHomeGotoDaily) this.dom.btnHomeGotoDaily.addEventListener('click', () => this.switchMode('dailyPasswords'));
@@ -421,16 +455,21 @@ class DeltaMorseTrainerApp {
 
     // 切换 Tab 时彻底停止一切正在发声的音频引擎，杜绝任何声音重叠或自动响铃
     audioEngine.stop();
+    if (mode !== 'audioDecoder' && this.decoder && this.decoder.isRunning) {
+      this.decoder.stop();
+    }
     this.currentMode = mode;
 
     if (this.dom.tabHome) this.dom.tabHome.classList.toggle('active', mode === 'home');
     if (this.dom.tabDailyPasswords) this.dom.tabDailyPasswords.classList.toggle('active', mode === 'dailyPasswords');
+    if (this.dom.tabAudioDecoder) this.dom.tabAudioDecoder.classList.toggle('active', mode === 'audioDecoder');
     this.dom.tabRealCombat.classList.toggle('active', mode === 'realCombat');
     this.dom.tabSingleFlash.classList.toggle('active', mode === 'singleFlash');
     this.dom.tabTerminalHack.classList.toggle('active', mode === 'terminalHack');
 
     if (this.dom.viewHome) this.dom.viewHome.style.display = mode === 'home' ? 'block' : 'none';
     if (this.dom.viewDailyPasswords) this.dom.viewDailyPasswords.style.display = mode === 'dailyPasswords' ? 'block' : 'none';
+    if (this.dom.viewAudioDecoder) this.dom.viewAudioDecoder.style.display = mode === 'audioDecoder' ? 'block' : 'none';
     this.dom.viewRealCombat.style.display = mode === 'realCombat' ? 'block' : 'none';
     this.dom.viewSingleFlash.style.display = mode === 'singleFlash' ? 'block' : 'none';
     this.dom.viewTerminalHack.style.display = mode === 'terminalHack' ? 'block' : 'none';
@@ -439,6 +478,8 @@ class DeltaMorseTrainerApp {
       this.renderHomeView();
     } else if (mode === 'dailyPasswords') {
       this.renderDailyPasswordsView();
+    } else if (mode === 'audioDecoder') {
+      this.updateDecoderStatusUI(this.decoder ? (this.decoder.isRunning ? 'listening' : 'idle') : 'idle');
     } else if (mode === 'realCombat') {
       this.startRealCombatRound(false); // 关键：切换进来不自动播放声音！
     } else if (mode === 'singleFlash') {
@@ -1241,6 +1282,261 @@ class DeltaMorseTrainerApp {
     this.renderDailyPasswordsView();
     this.renderHomeView();
     this.showToast('↺ 已重置为推荐基准密码！');
+  }
+
+  /* =========================================================================
+     游戏声音实时听音破译控制与示波器绘制
+     ========================================================================= */
+
+  initAudioDecoder() {
+    this.decoder = new MorseAudioDecoder({
+      targetFreq: 750,
+      threshold: 0.20,
+      onSignalState: (state) => {
+        this.renderDecoderSignal(state);
+      },
+      onSymbolDetected: (symbol, duration) => {
+        if (this.dom.decoderLiveSymbols) {
+          this.dom.decoderLiveSymbols.textContent = this.decoder.currentSymbols || '--';
+        }
+      },
+      onDigitDecoded: (digit, fullCode, codeSymbols) => {
+        if (this.dom.decoderResultCode) {
+          this.dom.decoderResultCode.textContent = fullCode.split('').join(' ');
+        }
+        if (this.dom.decoderResultMeta) {
+          this.dom.decoderResultMeta.textContent = `已解码 ${fullCode.length} 位 · 最近解析: ${digit} (${codeSymbols})`;
+        }
+        if (this.dom.decoderLiveSymbols) {
+          this.dom.decoderLiveSymbols.textContent = '--';
+        }
+      },
+      onSequenceComplete: (fullCode) => {
+        this.showToast(`🎯 完整密码捕获成功: ${fullCode}`);
+        if (this.dom.decoderResultMeta) {
+          this.dom.decoderResultMeta.textContent = `✅ 轮次捕获完毕: 【${fullCode}】等待下轮循环...`;
+        }
+        this.addDecoderHistory(fullCode);
+      },
+      onError: (errMsg) => {
+        this.showToast(`⚠️ ${errMsg}`, 3500);
+      },
+      onStatusChange: (status) => {
+        this.updateDecoderStatusUI(status);
+      }
+    });
+
+    // 绑定音频采集控制按钮
+    if (this.dom.btnStartSystemAudio) {
+      this.dom.btnStartSystemAudio.addEventListener('click', async () => {
+        try {
+          await this.decoder.startSystemAudio();
+          this.showToast('🖥️ 已接入系统音频内录，请切入游戏靠近密码门！');
+        } catch (err) {
+          this.showToast(`❌ 接入失败: ${err.message}`, 4000);
+        }
+      });
+    }
+
+    if (this.dom.btnStartMicAudio) {
+      this.dom.btnStartMicAudio.addEventListener('click', async () => {
+        try {
+          await this.decoder.startMicrophone();
+          this.showToast('🎙️ 已开启麦克风监听，请将设备对准扬声器！');
+        } catch (err) {
+          this.showToast(`❌ 麦克风开启失败: ${err.message}`, 4000);
+        }
+      });
+    }
+
+    if (this.dom.btnStopAudioDecoder) {
+      this.dom.btnStopAudioDecoder.addEventListener('click', () => {
+        this.decoder.stop();
+        this.showToast('⏹️ 监听已停止');
+      });
+    }
+
+    // 频率滑块
+    if (this.dom.sliderDecoderFreq) {
+      this.dom.sliderDecoderFreq.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${val} Hz`;
+        if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心滤波：${val} Hz`;
+        this.decoder.setTargetFrequency(val);
+      });
+    }
+
+    // 预设芯片按钮
+    document.querySelectorAll('.freq-presets .btn-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const freq = parseInt(btn.dataset.freq, 10);
+        if (this.dom.sliderDecoderFreq) this.dom.sliderDecoderFreq.value = freq;
+        if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${freq} Hz`;
+        if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心滤波：${freq} Hz`;
+        document.querySelectorAll('.freq-presets .btn-chip').forEach(b => b.classList.toggle('active', b === btn));
+        this.decoder.setTargetFrequency(freq);
+      });
+    });
+
+    // 灵敏度滑块
+    if (this.dom.sliderDecoderThreshold) {
+      this.dom.sliderDecoderThreshold.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (this.dom.valDecoderThreshold) this.dom.valDecoderThreshold.textContent = `${val}%`;
+        this.decoder.setThreshold(val / 100);
+      });
+    }
+
+    // 一键复制已解码密码
+    if (this.dom.btnCopyDecoderCode) {
+      this.dom.btnCopyDecoderCode.addEventListener('click', () => {
+        const code = this.decoder.decodedDigits;
+        if (!code) {
+          this.showToast('⚠️ 当前尚未解析出密码数字');
+          return;
+        }
+        navigator.clipboard.writeText(code).then(() => {
+          this.showToast(`📋 密码 【${code}】 已复制到剪贴板！`);
+        }).catch(() => {
+          this.showToast(`密码为: ${code}`);
+        });
+      });
+    }
+
+    // 清空重试
+    if (this.dom.btnClearDecoderCode) {
+      this.dom.btnClearDecoderCode.addEventListener('click', () => {
+        this.decoder.resetBuffer();
+        if (this.dom.decoderResultCode) this.dom.decoderResultCode.textContent = '_ _ _';
+        if (this.dom.decoderLiveSymbols) this.dom.decoderLiveSymbols.textContent = '--';
+        if (this.dom.decoderResultMeta) this.dom.decoderResultMeta.textContent = '已清空，等待新电报信号...';
+        this.showToast('🧹 已重置当前识别缓存');
+      });
+    }
+
+    // 初始化示波器 Canvas 上下文
+    if (this.dom.decoderCanvas) {
+      this.decoderCanvasCtx = this.dom.decoderCanvas.getContext('2d');
+    }
+  }
+
+  updateDecoderStatusUI(status) {
+    const isListening = status === 'listening';
+    if (this.dom.decoderStatusPill) {
+      this.dom.decoderStatusPill.classList.toggle('listening', isListening);
+    }
+    if (this.dom.decoderStatusText) {
+      this.dom.decoderStatusText.textContent = isListening 
+        ? `🟢 实时监听中 (${this.decoder && this.decoder.sourceType === 'system' ? '系统音频' : '麦克风'})`
+        : '待命就绪 · 待选择音频源';
+    }
+    if (this.dom.btnStopAudioDecoder) {
+      this.dom.btnStopAudioDecoder.style.display = isListening ? 'inline-flex' : 'none';
+    }
+    if (this.dom.btnStartSystemAudio) {
+      this.dom.btnStartSystemAudio.classList.toggle('active', isListening && this.decoder && this.decoder.sourceType === 'system');
+    }
+    if (this.dom.btnStartMicAudio) {
+      this.dom.btnStartMicAudio.classList.toggle('active', isListening && this.decoder && this.decoder.sourceType === 'microphone');
+    }
+  }
+
+  renderDecoderSignal(state) {
+    // 1. 更新电平能量条
+    const pct = Math.min(100, Math.round(state.energy * 100));
+    const threshPct = Math.min(100, Math.round(state.threshold * 100));
+    if (this.dom.decoderEnergyFill) this.dom.decoderEnergyFill.style.width = `${pct}%`;
+    if (this.dom.decoderThresholdMarker) this.dom.decoderThresholdMarker.style.left = `${threshPct}%`;
+    if (this.dom.decoderEnergyVal) this.dom.decoderEnergyVal.textContent = `${pct}%`;
+
+    // 2. 更新指示灯
+    if (this.dom.statDecoderSignal) {
+      if (state.isHigh) {
+        this.dom.statDecoderSignal.classList.add('high');
+        this.dom.statDecoderSignal.textContent = '🔊 蜂鸣信号';
+      } else {
+        this.dom.statDecoderSignal.classList.remove('high');
+        this.dom.statDecoderSignal.textContent = '静音中';
+      }
+    }
+
+    // 3. 绘制示波器波形
+    if (this.decoderCanvasCtx && state.timeData) {
+      const ctx = this.decoderCanvasCtx;
+      const width = this.dom.decoderCanvas.width;
+      const height = this.dom.decoderCanvas.height;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // 绘制中心参考线
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
+
+      // 绘制波形曲线
+      ctx.beginPath();
+      ctx.lineWidth = state.isHigh ? 2.5 : 1.5;
+      ctx.strokeStyle = state.isHigh ? '#00ff66' : '#00b4d8';
+      ctx.shadowColor = state.isHigh ? '#00ff66' : '#00b4d8';
+      ctx.shadowBlur = state.isHigh ? 8 : 2;
+
+      const sliceWidth = width / state.timeData.length;
+      let x = 0;
+      for (let i = 0; i < state.timeData.length; i++) {
+        const v = state.timeData[i] / 128.0;
+        const y = (v * height) / 2;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+        x += sliceWidth;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  addDecoderHistory(code) {
+    const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    this.decoderHistory.unshift({ code, time });
+    if (this.decoderHistory.length > 5) this.decoderHistory.pop();
+    this.renderDecoderHistory();
+  }
+
+  renderDecoderHistory() {
+    if (!this.dom.decoderHistoryList) return;
+    if (this.decoderHistory.length === 0) {
+      this.dom.decoderHistoryList.innerHTML = `<div class="history-empty">暂无捕获记录，启动监听靠近游戏密码门即可自动记录</div>`;
+      return;
+    }
+    let html = '';
+    this.decoderHistory.forEach(item => {
+      html += `
+        <div class="history-item">
+          <div>
+            <span class="history-code">${item.code}</span>
+            <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">(${item.code.length}位)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="history-time">${item.time}</span>
+            <button class="history-copy-btn" data-code="${item.code}">复制</button>
+          </div>
+        </div>
+      `;
+    });
+    this.dom.decoderHistoryList.innerHTML = html;
+    this.dom.decoderHistoryList.querySelectorAll('.history-copy-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const c = btn.dataset.code;
+        navigator.clipboard.writeText(c).then(() => {
+          this.showToast(`📋 已复制: ${c}`);
+        });
+      });
+    });
   }
 }
 

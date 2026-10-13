@@ -41,6 +41,10 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
         电脑终端速算
       </button>
+      <button id="tab-audio-decoder" class="tab-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.76-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+        🎙️ 游戏声音实时破译
+      </button>
     </nav>
 
     <!-- 右侧情报手册触发 -->
@@ -158,6 +162,18 @@
                 <div class="action-btn-row">
                   <span class="action-hotkey">全图更新</span>
                   <button class="btn-tactical btn-start-sim" data-target="dailyPasswords">查阅每日全图 ➔</button>
+                </div>
+              </div>
+
+              <!-- 模块5：游戏声音实时破译 -->
+              <div class="action-card" id="card-action-decoder">
+                <div class="action-card-badge" style="background: rgba(0, 255, 102, 0.15); color: var(--delta-green); border-color: rgba(0, 255, 102, 0.4);">实战利器</div>
+                <div class="action-icon">🎙️</div>
+                <h4>游戏声音实时破译</h4>
+                <p>捕获游戏声音或麦克风收音，高精度窄带滤波抗噪，毫秒级直接将摩斯电码翻译为明文密码并一键复制！</p>
+                <div class="action-btn-row">
+                  <span class="action-hotkey">智能解码</span>
+                  <button class="btn-tactical btn-start-sim" data-target="audioDecoder">启动声音破译 ➔</button>
                 </div>
               </div>
 
@@ -544,6 +560,154 @@
               <button class="key-btn action-clear" data-val="CLEAR">C<span class="sub">退格</span></button>
               <button class="key-btn" data-val="0">0<span class="sub">5横</span></button>
               <button class="key-btn action-enter" data-val="ENTER">ENT<span class="sub">破解</span></button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 模式：游戏声音实时听音破译 (Live Morse Audio Decoder) -->
+      <div id="view-audio-decoder" class="tactical-card" style="display: none;">
+        <div class="card-header">
+          <h2>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.76-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            战地实时听音破译 // LIVE AUDIO MORSE DECODER
+          </h2>
+          <div class="decoder-status-pill" id="decoder-status-pill">
+            <span class="indicator-dot" id="decoder-status-dot"></span>
+            <span id="decoder-status-text">待命就绪 · 待选择音频源</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="decoder-container">
+
+            <!-- 音频采集源选择控制条 -->
+            <div class="decoder-source-panel">
+              <div class="decoder-source-cards">
+                <button id="btn-start-system-audio" class="source-card">
+                  <div class="source-icon">🖥️</div>
+                  <div class="source-info">
+                    <div class="source-title">截取游戏/系统音频 (推荐免麦)</div>
+                    <div class="source-desc">浏览器内录电脑声音 · 纯净无外界噪音 · 准确率最高</div>
+                  </div>
+                  <div class="source-badge">免麦克风</div>
+                </button>
+
+                <button id="btn-start-mic-audio" class="source-card">
+                  <div class="source-icon">🎙️</div>
+                  <div class="source-info">
+                    <div class="source-title">麦克风 / 立体声混音</div>
+                    <div class="source-desc">外放音响麦克风收音 · 或选择立体声混音虚拟声卡</div>
+                  </div>
+                  <div class="source-badge">麦克风</div>
+                </button>
+              </div>
+
+              <div class="decoder-stop-row" style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                <button id="btn-stop-audio-decoder" class="btn-secondary" style="display: none; color: #ff5566; border-color: rgba(255, 85, 102, 0.4);">
+                  ⏹️ 停止监听
+                </button>
+              </div>
+            </div>
+
+            <!-- 系统音频截取提示指引 -->
+            <div class="decoder-help-box" id="decoder-help-box">
+              <div style="font-weight: 600; color: var(--delta-amber); margin-bottom: 4px;">
+                💡 系统音频内录指南 (Chrome / Edge 必读)：
+              </div>
+              <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.6;">
+                点击【截取游戏/系统音频】后，在弹出的浏览器窗口中选择<strong>【整个屏幕】</strong>或<strong>【游戏窗口】</strong>，并<strong>务必勾选弹窗左下角的“同时共享系统音频” (Also share system audio)</strong>！否则浏览器无法捕获游戏声音。
+              </div>
+            </div>
+
+            <!-- 战术声波与能量监控示波器 -->
+            <div class="decoder-monitor-box">
+              <div class="monitor-header">
+                <span class="monitor-title">📊 战术声波示波器 (窄带带通滤波 750Hz)</span>
+                <div class="monitor-stats">
+                  <span id="stat-decoder-hz">中心滤波：750 Hz</span>
+                  <span id="stat-decoder-signal" class="signal-tag">静音中</span>
+                </div>
+              </div>
+              
+              <!-- 示波器 Canvas -->
+              <div class="canvas-wrapper">
+                <canvas id="decoder-canvas" width="600" height="110"></canvas>
+                <div class="canvas-grid-overlay"></div>
+              </div>
+
+              <!-- 实时电平与阈值指示条 -->
+              <div class="energy-bar-container">
+                <div class="energy-label">实时电平:</div>
+                <div class="energy-bar-track">
+                  <div id="decoder-energy-fill" class="energy-bar-fill"></div>
+                  <div id="decoder-threshold-marker" class="energy-threshold-marker"></div>
+                </div>
+                <span id="decoder-energy-val" class="energy-val">0%</span>
+              </div>
+            </div>
+
+            <!-- 声学与灵敏度微调控制 -->
+            <div class="decoder-params-row">
+              <div class="param-group">
+                <div class="param-header">
+                  <span>目标中心频率 (Hz)</span>
+                  <span id="val-decoder-freq" style="color: var(--delta-green); font-family: var(--font-mono);">750 Hz</span>
+                </div>
+                <input type="range" id="slider-decoder-freq" min="500" max="1100" step="10" value="750">
+                <div class="freq-presets">
+                  <button class="btn-chip" data-freq="750">750Hz (标准)</button>
+                  <button class="btn-chip" data-freq="800">800Hz (航天)</button>
+                  <button class="btn-chip" data-freq="700">700Hz (沉稳)</button>
+                </div>
+              </div>
+
+              <div class="param-group">
+                <div class="param-header">
+                  <span>触发灵敏度阈值</span>
+                  <span id="val-decoder-threshold" style="color: var(--delta-amber); font-family: var(--font-mono);">20%</span>
+                </div>
+                <input type="range" id="slider-decoder-threshold" min="5" max="80" step="1" value="20">
+                <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">
+                  环境杂音大时请往右调高阈值；声音微弱时请往左调低。
+                </div>
+              </div>
+            </div>
+
+            <!-- 核心成果展示：大号战术破译看板 -->
+            <div class="decoder-output-board">
+              <div class="output-sub-title">🎯 实时解密结果 (DECODED PASSWORDS)</div>
+              
+              <!-- 当前正在接收的点划 -->
+              <div class="current-symbols-display">
+                <span class="symbols-label">当前点划缓冲:</span>
+                <span id="decoder-live-symbols" class="symbols-val">--</span>
+              </div>
+
+              <!-- 最终解出的密码大字屏 -->
+              <div class="decoded-lcd-screen">
+                <div class="screen-glare"></div>
+                <div id="decoder-result-code" class="lcd-code">_ _ _</div>
+                <div class="lcd-meta" id="decoder-result-meta">等待游戏摩斯信号...</div>
+              </div>
+
+              <div class="output-actions-row">
+                <button id="btn-copy-decoder-code" class="btn-tactical" style="padding: 10px 24px; font-size: 14px;">
+                  📋 一键复制密码
+                </button>
+                <button id="btn-clear-decoder-code" class="btn-secondary" style="padding: 10px 18px; font-size: 13px;">
+                  🧹 清空重试
+                </button>
+              </div>
+            </div>
+
+            <!-- 历史识别记录流水 -->
+            <div class="decoder-history-section">
+              <div class="history-title">📜 识别历史记录 (最近 5 次)</div>
+              <div id="decoder-history-list" class="history-list">
+                <div class="history-empty">暂无捕获记录，启动监听靠近游戏密码门即可自动记录</div>
+              </div>
             </div>
 
           </div>
