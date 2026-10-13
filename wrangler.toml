@@ -1,3 +1,6 @@
-name = "delta-morse-trainer"
-compatibility_date = "2024-01-01"
+name = "delta-pwd-practice"
+compatibility_date = "2024-09-23"
 pages_build_output_dir = "."
+
+[assets]
+directory = "."
