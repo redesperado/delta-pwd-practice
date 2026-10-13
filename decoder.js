@@ -1,6 +1,7 @@
 /**
  * decoder.js - 《三角洲行动》游戏声音实时摩斯密码听音与解码引擎
  * 采用 Web Audio API 进行频带滤波、能量检测、滞后阈值触发与摩斯时序状态机解码
+ * 深度优化：支持 ScriptProcessor 驱动后台长效免休眠监听，杜绝切屏至游戏时被浏览器冻结
  */
 
 import { CODE_TO_DIGIT, MORSE_DIGITS } from './morse.js';
@@ -8,12 +9,12 @@ import { CODE_TO_DIGIT, MORSE_DIGITS } from './morse.js';
 export class MorseAudioDecoder {
   constructor(options = {}) {
     this.targetFreq = options.targetFreq || 750; // 目标中心频率 (Hz)，三角洲蜂鸣通常在 750Hz 左右
-    this.filterQ = options.filterQ || 6.0;       // 窄带滤波 Q 值
-    this.threshold = options.threshold || 0.14; // 能量触发阈值 (0.01 ~ 1.0，降低默认门槛提高微弱声音检出率)
+    this.filterQ = options.filterQ || 4.5;       // 窄带滤波 Q 值 (4.5 适度兼顾微弱频偏)
+    this.threshold = options.threshold || 0.10; // 能量触发阈值 (0.01 ~ 1.0，0.10 可稳定识别微弱游戏声音)
     this.noiseFloor = 0.02;                     // 底噪基准线
 
     // 回调事件
-    this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeDomainData, freqData })
+    this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeData, freqData })
     this.onSymbolDetected = options.onSymbolDetected || null; // (symbol: '·' | '-', durationMs)
     this.onDigitDecoded = options.onDigitDecoded || null;   // (digit: string, currentFullCode: string, codeSymbols: string)
     this.onSequenceComplete = options.onSequenceComplete || null; // (fullCode: string)
@@ -26,16 +27,20 @@ export class MorseAudioDecoder {
     this.sourceNode = null;
     this.bandpassFilter = null;
     this.analyserNode = null;
+    this.scriptProcessor = null;
+    this.silentGain = null;
 
     // 运行状态
     this.isRunning = false;
-    this.sourceType = 'none'; // 'system' | 'microphone'
+    this.sourceType = 'none'; // 'system' | 'microphone' | 'selftest'
     this.animationId = null;
+    this.latestState = null;
+    this.lastProcessTime = 0;
 
     // 摩斯状态机变量
     this.isSignalHigh = false;
     this.highStartTime = 0;
-    this.lowStartTime = 0;
+    this.lowStartTime = performance.now();
     this.lastStateChangeTime = performance.now();
 
     // 收集中的点划与数字
@@ -71,16 +76,20 @@ export class MorseAudioDecoder {
 
       const audioTracks = stream.getAudioTracks();
       if (!audioTracks || audioTracks.length === 0) {
-        // 用户未勾选“共享音频”
         stream.getTracks().forEach(t => t.stop());
-        throw new Error('未检测到音频轨道！请在共享选择窗口中务必勾选【同时共享系统音频】(Share system audio)。');
+        throw new Error('未检测到音频轨道！请在共享选择窗口中务必勾选【同时共享系统音频】(Share system audio)。建议选择【整个屏幕】并勾选左下角音频共享。');
       }
 
-      // 停止视频轨以极大节约 CPU 和显存
+      // 注意：切勿主动关闭视频轨！Chromium 机制下关闭视频轨会导致屏幕捕获会话被直接销毁，连带导致音频轨被系统切断
+      // 保持视频轨在后台存在且不渲染，CPU 占用微乎其微
       const videoTracks = stream.getVideoTracks();
-      videoTracks.forEach(t => t.stop());
+      if (videoTracks && videoTracks.length > 0) {
+        // 监听用户点击浏览器浮动的“停止共享”按钮
+        videoTracks[0].addEventListener('ended', () => {
+          this.stop();
+        });
+      }
 
-      // 监听用户点击浏览器“停止共享”
       audioTracks[0].addEventListener('ended', () => {
         this.stop();
       });
@@ -119,6 +128,14 @@ export class MorseAudioDecoder {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks && audioTracks.length > 0) {
+        audioTracks[0].addEventListener('ended', () => {
+          this.stop();
+        });
+      }
+
       this.mediaStream = stream;
       this.sourceType = 'microphone';
       await this.initAudioPipeline();
@@ -197,6 +214,7 @@ export class MorseAudioDecoder {
 
   /**
    * 初始化 Web Audio API 信号处理管线
+   * 采用 ScriptProcessorNode 驱动后台免休眠实时解码
    */
   async initAudioPipeline() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -205,9 +223,15 @@ export class MorseAudioDecoder {
       await this.audioCtx.resume();
     }
 
+    this.audioCtx.onstatechange = () => {
+      if (this.audioCtx && this.audioCtx.state === 'suspended' && this.isRunning) {
+        this.audioCtx.resume().catch(() => {});
+      }
+    };
+
     this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
 
-    // 建立双二阶带通滤波器 (Bandpass Filter)
+    // 建立双二阶窄带带通滤波器 (Bandpass Filter)
     this.bandpassFilter = this.audioCtx.createBiquadFilter();
     this.bandpassFilter.type = 'bandpass';
     this.bandpassFilter.frequency.setValueAtTime(this.targetFreq, this.audioCtx.currentTime);
@@ -216,11 +240,21 @@ export class MorseAudioDecoder {
     // 建立频谱与时域分析器
     this.analyserNode = this.audioCtx.createAnalyser();
     this.analyserNode.fftSize = 512;
-    this.analyserNode.smoothingTimeConstant = 0.3; // 适度平滑降噪
+    this.analyserNode.smoothingTimeConstant = 0.2; // 降噪且响应迅速
 
-    // 连接管线：源 ➔ 窄带滤波 ➔ 分析器 (绝不连接 destination 避免麦克风回声)
+    // 建立后台音频处理节点 (ScriptProcessorNode 保证后台标签页/切游戏时不被浏览器暂停)
+    this.scriptProcessor = this.audioCtx.createScriptProcessor(2048, 1, 1);
+    this.silentGain = this.audioCtx.createGain();
+    this.silentGain.gain.setValueAtTime(0, this.audioCtx.currentTime); // 0 增益确保不发出麦克风回声
+
+    // 连接管线：
+    // sourceNode ➔ bandpassFilter ➔ analyserNode
+    // analyserNode ➔ scriptProcessor ➔ silentGain ➔ destination
     this.sourceNode.connect(this.bandpassFilter);
     this.bandpassFilter.connect(this.analyserNode);
+    this.analyserNode.connect(this.scriptProcessor);
+    this.scriptProcessor.connect(this.silentGain);
+    this.silentGain.connect(this.audioCtx.destination);
 
     this.timeData = new Uint8Array(this.analyserNode.fftSize);
     this.freqData = new Uint8Array(this.analyserNode.frequencyBinCount);
@@ -233,13 +267,18 @@ export class MorseAudioDecoder {
     this.currentSymbols = '';
     this.decodedDigits = '';
     this.isSequenceReported = false;
+    this.lastProcessTime = performance.now();
 
-    this.processLoop();
+    // 由音频硬件时钟持续驱动分析 (后台切到游戏也不会暂停)
+    this.scriptProcessor.onaudioprocess = () => {
+      if (!this.isRunning) return;
+      this.analyzeFrame(performance.now());
+    };
+
+    // UI 示波器渲染循环 (前台 60fps 绘制)
+    this.renderLoop();
   }
 
-  /**
-   * 设置中心滤波频率 (可在 500Hz ~ 1200Hz 之间动态微调)
-   */
   setTargetFrequency(freq) {
     this.targetFreq = Math.max(400, Math.min(1500, freq));
     if (this.bandpassFilter && this.audioCtx) {
@@ -247,21 +286,26 @@ export class MorseAudioDecoder {
     }
   }
 
-  /**
-   * 设置触发阈值 (0.02 ~ 0.90)
-   */
   setThreshold(val) {
     this.threshold = Math.max(0.02, Math.min(0.95, val));
   }
 
-  /**
-   * 停止采集与处理
-   */
   stop() {
     this.isRunning = false;
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
+    }
+    if (this.scriptProcessor) {
+      try {
+        this.scriptProcessor.onaudioprocess = null;
+        this.scriptProcessor.disconnect();
+      } catch (e) {}
+      this.scriptProcessor = null;
+    }
+    if (this.silentGain) {
+      try { this.silentGain.disconnect(); } catch (e) {}
+      this.silentGain = null;
     }
     if (this.sourceNode) {
       try { this.sourceNode.disconnect(); } catch (e) {}
@@ -276,7 +320,9 @@ export class MorseAudioDecoder {
       this.analyserNode = null;
     }
     if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(t => t.stop());
+      try {
+        this.mediaStream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
       this.mediaStream = null;
     }
     if (this.audioCtx) {
@@ -287,9 +333,6 @@ export class MorseAudioDecoder {
     this.setStatus('idle');
   }
 
-  /**
-   * 清空当前识别进度
-   */
   resetBuffer() {
     this.currentSymbols = '';
     this.decodedDigits = '';
@@ -303,55 +346,50 @@ export class MorseAudioDecoder {
   }
 
   /**
-   * 核心采样与解码循环 (requestAnimationFrame)
+   * 核心 DSP 与摩斯状态机分析 (每 ~42ms 由音频硬件驱动一次)
    */
-  processLoop() {
-    if (!this.isRunning) return;
+  analyzeFrame(now) {
+    if (!this.isRunning || !this.analyserNode) return;
+    this.lastProcessTime = now;
 
     this.analyserNode.getByteTimeDomainData(this.timeData);
     this.analyserNode.getByteFrequencyData(this.freqData);
 
-    // 1. 计算时域 RMS 能量与峰值
+    // 1. 计算时域 RMS 能量
     let sumSquares = 0;
-    let peak = 0;
     const len = this.timeData.length;
     for (let i = 0; i < len; i++) {
-      const normalized = (this.timeData[i] - 128) / 128; // -1.0 ~ 1.0
+      const normalized = (this.timeData[i] - 128) / 128;
       sumSquares += normalized * normalized;
-      const absVal = Math.abs(normalized);
-      if (absVal > peak) peak = absVal;
     }
     const rms = Math.sqrt(sumSquares / len);
 
-    // 2. 结合中心频率处的频域能量加强信噪比
-    // 频域 bin 计算: targetFreq / (nyquist / binCount)
-    const nyquist = this.audioCtx.sampleRate / 2;
+    // 2. 结合中心频率处的频域能量
+    const nyquist = this.audioCtx ? (this.audioCtx.sampleRate / 2) : 24000;
     const binIndex = Math.round((this.targetFreq / nyquist) * this.freqData.length);
     let freqEnergy = 0;
-    // 取中心 bin 周围 3 个 bin 的均值
     let binCount = 0;
-    for (let b = Math.max(0, binIndex - 2); b <= Math.min(this.freqData.length - 1, binIndex + 2); b++) {
+    for (let b = Math.max(0, binIndex - 3); b <= Math.min(this.freqData.length - 1, binIndex + 3); b++) {
       freqEnergy += this.freqData[b] / 255;
       binCount++;
     }
     freqEnergy = binCount > 0 ? freqEnergy / binCount : 0;
 
-    // 综合能量指数 (时域 RMS * 0.5 + 频域带通能量 * 0.5)
-    const combinedEnergy = rms * 0.4 + freqEnergy * 0.6;
+    // 综合能量指数 (适当增益，提升对微弱内录声音检出率)
+    const timeEnergy = Math.min(1.0, rms * 2.8);
+    const combinedEnergy = Math.max(timeEnergy, freqEnergy * 1.3);
 
     // 3. 滞后阈值比较 (Schmitt Trigger)
     const highThreshold = this.threshold;
-    const lowThreshold = this.threshold * 0.65; // 滞后回差，避免毛刺
-
-    const now = performance.now();
+    const lowThreshold = this.threshold * 0.65;
 
     if (!this.isSignalHigh && combinedEnergy >= highThreshold) {
       // 信号由低变高 (蜂鸣开始)
       const silenceDuration = now - this.lowStartTime;
       this.handleSilenceEnd(silenceDuration);
 
-      // 若上一轮完整密码已结算完毕且已静音超 1.5s，新声音响起代表新的一轮开始，重置前一轮
-      if (this.isSequenceReported && silenceDuration > 1500) {
+      // 若上一轮完整密码已结算完毕且已静音超 1.2s，新声音响起代表新的一轮开始，重置前一轮
+      if (this.isSequenceReported && silenceDuration > 1200) {
         this.decodedDigits = '';
         this.currentSymbols = '';
         this.isSequenceReported = false;
@@ -364,77 +402,70 @@ export class MorseAudioDecoder {
       // 信号由高变低 (蜂鸣结束)
       const toneDuration = now - this.highStartTime;
       this.handleToneEnd(toneDuration);
-
       this.isSignalHigh = false;
       this.lowStartTime = now;
       this.lastStateChangeTime = now;
     } else if (!this.isSignalHigh) {
-      // 正在静音状态中，检测静音持续时间 (用于检测数字结束或整轮结束)
+      // 持续静音
       const currentSilence = now - this.lowStartTime;
       this.handleOngoingSilence(currentSilence);
     }
 
-    // 4. 回调当前帧状态给 UI 与示波器
-    if (this.onSignalState) {
-      this.onSignalState({
-        isHigh: this.isSignalHigh,
-        energy: combinedEnergy,
-        threshold: this.threshold,
-        timeData: this.timeData,
-        freqData: this.freqData,
-        currentSymbols: this.currentSymbols,
-        decodedDigits: this.decodedDigits
-      });
-    }
-
-    this.animationId = requestAnimationFrame(() => this.processLoop());
+    this.latestState = {
+      isHigh: this.isSignalHigh,
+      energy: combinedEnergy,
+      threshold: this.threshold,
+      timeData: this.timeData,
+      freqData: this.freqData,
+      currentSymbols: this.currentSymbols,
+      decodedDigits: this.decodedDigits
+    };
   }
 
   /**
-   * 单音响起结束 (判断点·还是划-)
-   * @param {number} durationMs 单音持续毫秒
+   * UI 示波器渲染循环 (requestAnimationFrame)
    */
-  handleToneEnd(durationMs) {
-    // 过滤小于 35ms 的短噪点脉冲
-    if (durationMs < 35) return;
+  renderLoop() {
+    if (!this.isRunning) return;
+    const now = performance.now();
 
-    let symbol = '';
-    // 标准游戏短音 ~125ms，长音 ~375ms
-    // 分割阈值设为 210ms (允许 0.6x ~ 1.5x 语速波动)
-    if (durationMs < 210) {
-      symbol = '·';
-    } else {
-      symbol = '-';
+    // 兜底保护：若 scriptProcessor 暂未触发，renderLoop 兜底执行分析
+    if (!this.lastProcessTime || (now - this.lastProcessTime > 70)) {
+      this.analyzeFrame(now);
     }
 
+    if (this.onSignalState && this.latestState) {
+      this.onSignalState(this.latestState);
+    }
+
+    this.animationId = requestAnimationFrame(() => this.renderLoop());
+  }
+
+  handleToneEnd(durationMs) {
+    if (durationMs < 30) return;
+
+    // 标准游戏短音 ~125ms，长音 ~375ms
+    // 分割阈值设为 210ms
+    const symbol = durationMs < 210 ? '·' : '-';
     this.currentSymbols += symbol;
 
     if (this.onSymbolDetected) {
       this.onSymbolDetected(symbol, durationMs);
     }
 
-    // 若已经达到 5 位符号，立即结算一个数字 (摩斯数字固定由5位点划组成)
     if (this.currentSymbols.length === 5) {
       this.commitCurrentDigit();
     }
   }
 
-  /**
-   * 静音期结束 (新音符响起触发)
-   */
   handleSilenceEnd(silenceDurationMs) {
-    // 如果之前点划未满5个但遇到明显长停顿，说明可能有漏判或杂音，尝试容错
-    if (this.currentSymbols.length > 0 && silenceDurationMs > 600) {
+    if (this.currentSymbols.length > 0 && silenceDurationMs > 550) {
       this.commitCurrentDigit();
     }
   }
 
-  /**
-   * 持续静音检测 (处理字符间隔、长空白轮次结束)
-   */
   handleOngoingSilence(silenceDurationMs) {
-    // 1. 如果缓冲区有点划但不足 5 位，且静音超过 650ms，自动触发提交
-    if (this.currentSymbols.length > 0 && silenceDurationMs > 650) {
+    if (this.currentSymbols.length > 0 && silenceDurationMs > 550) {
       this.commitCurrentDigit();
     }
 
@@ -445,31 +476,30 @@ export class MorseAudioDecoder {
         this.onSequenceComplete(this.decodedDigits);
       }
     }
-
-    // 若静音超过 4 秒且无新声音，重置轮次状态以准备下一轮
-    if (silenceDurationMs > 4000 && this.isSequenceReported) {
-      this.decodedDigits = '';
-      this.isSequenceReported = false;
-    }
+    // 解出来的密码永久保留在屏幕上，绝不在长时间静音后抹除，供玩家随时查看与复制！
   }
 
-  /**
-   * 提交当前 5 位点划并翻译为数字
-   */
   commitCurrentDigit() {
     if (!this.currentSymbols) return;
 
     let code = this.currentSymbols;
     this.currentSymbols = '';
 
-    // 若符号因杂音毛刺超过 5 位，尝试截取后 5 位容错匹配
     let digit = CODE_TO_DIGIT[code];
+
+    // 若符号因杂音毛刺超过 5 位，尝试截取后 5 位容错匹配
     if (digit === undefined && code.length > 5) {
       const suffix = code.slice(-5);
       if (CODE_TO_DIGIT[suffix] !== undefined) {
         digit = CODE_TO_DIGIT[suffix];
         code = suffix;
       }
+    }
+
+    // 若因轻微丢音仅有 4 位，容错匹配极端数字
+    if (digit === undefined && code.length === 4) {
+      if (code === '----') digit = '0';
+      else if (code === '····') digit = '5';
     }
 
     if (digit !== undefined) {

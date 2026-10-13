@@ -460,11 +460,8 @@ class DeltaMorseTrainerApp {
       this.hackNextTimer = null;
     }
 
-    // 切换 Tab 时彻底停止一切正在发声的音频引擎，杜绝任何声音重叠或自动响铃
+    // 切换 Tab 时彻底停止正在发声的练习音频，杜绝声音重叠
     audioEngine.stop();
-    if (mode !== 'audioDecoder' && this.decoder && this.decoder.isRunning) {
-      this.decoder.stop();
-    }
     this.currentMode = mode;
 
     if (this.dom.tabHome) this.dom.tabHome.classList.toggle('active', mode === 'home');
@@ -1347,7 +1344,7 @@ class DeltaMorseTrainerApp {
   initAudioDecoder() {
     this.decoder = new MorseAudioDecoder({
       targetFreq: 750,
-      threshold: 0.20,
+      threshold: 0.10,
       onSignalState: (state) => {
         this.renderDecoderSignal(state);
       },
@@ -1515,7 +1512,7 @@ class DeltaMorseTrainerApp {
         this.dom.btnDecoderSelftest.disabled = false;
         this.dom.btnDecoderSelftest.innerHTML = `🔊 播放自测音频 (382)`;
       }
-    }, 6500);
+    }, 9000);
   }
 
   updateDecoderStatusUI(status) {
@@ -1526,11 +1523,11 @@ class DeltaMorseTrainerApp {
     if (this.dom.decoderStatusText) {
       let sourceName = '麦克风';
       if (this.decoder) {
-        if (this.decoder.sourceType === 'system') sourceName = '系统音频';
+        if (this.decoder.sourceType === 'system') sourceName = '系统音频内录';
         else if (this.decoder.sourceType === 'selftest') sourceName = '自测模拟源';
       }
       this.dom.decoderStatusText.textContent = isListening 
-        ? `🟢 实时监听中 (${sourceName})`
+        ? `🟢 持续监听中 (${sourceName}) · 后台免休眠`
         : '待命就绪 · 待选择音频源';
     }
     if (this.dom.btnStopAudioDecoder) {
