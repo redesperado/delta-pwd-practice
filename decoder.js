@@ -32,7 +32,7 @@ export class MorseAudioDecoder {
 
     // 运行状态
     this.isRunning = false;
-    this.sourceType = 'none'; // 'system' | 'microphone' | 'selftest'
+    this.sourceType = 'none'; // 'system' | 'microphone'
     this.animationId = null;
     this.latestState = null;
     this.lastProcessTime = 0;
@@ -148,68 +148,7 @@ export class MorseAudioDecoder {
     }
   }
 
-  /**
-   * 启动内置模拟自测模式 (直通注入 750Hz 382 密码蜂鸣，无需媒体流权限即可 100% 验证解码器与示波器)
-   */
-  async startSelfTest(code = '382') {
-    this.stop();
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    this.audioCtx = new AudioContextClass();
-    if (this.audioCtx.state === 'suspended') {
-      await this.audioCtx.resume();
-    }
 
-    this.sourceType = 'selftest';
-    await this.initAudioPipeline();
-    this.setStatus('listening');
-
-    this.playSyntheticTestBeeps(code);
-  }
-
-  /**
-   * 生成合成测试音频：直通注入带通滤波器并输出到扬声器，保证零延迟 100% 成功触发
-   */
-  playSyntheticTestBeeps(code = '382') {
-    if (!this.audioCtx || !this.bandpassFilter) return;
-    const ctx = this.audioCtx;
-    let t = ctx.currentTime + 0.15;
-    const dot = 0.125;
-    const dash = dot * 3;
-
-    for (let i = 0; i < code.length; i++) {
-      const digit = code[i];
-      const morseInfo = MORSE_DIGITS[digit];
-      if (!morseInfo) continue;
-      const symbols = morseInfo.code;
-
-      for (let s = 0; s < symbols.length; s++) {
-        const sym = symbols[s];
-        const dur = (sym === '·') ? dot : dash;
-
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(this.targetFreq, t);
-
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.linearRampToValueAtTime(0.7, t + 0.005);
-        gain.gain.setValueAtTime(0.7, t + dur - 0.005);
-        gain.gain.linearRampToValueAtTime(0.0001, t + dur);
-
-        osc.connect(gain);
-        // 直通注入 DSP 带通滤波器 (无需任何 MediaStreamDestination loopback，保证 100% 成功触发分析)
-        gain.connect(this.bandpassFilter);
-        // 同时输出至扬声器
-        gain.connect(ctx.destination);
-
-        osc.start(t);
-        osc.stop(t + dur);
-
-        t += dur + dot;
-      }
-      t += dot * 2;
-    }
-  }
 
   /**
    * 初始化 Web Audio API 信号处理管线

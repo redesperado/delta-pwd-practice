@@ -217,7 +217,6 @@ class DeltaMorseTrainerApp {
       decoderResultMeta: document.getElementById('decoder-result-meta'),
       btnCopyDecoderCode: document.getElementById('btn-copy-decoder-code'),
       btnClearDecoderCode: document.getElementById('btn-clear-decoder-code'),
-      btnDecoderSelftest: document.getElementById('btn-decoder-selftest'),
       decoderHistoryList: document.getElementById('decoder-history-list')
     };
   }
@@ -1468,45 +1467,10 @@ class DeltaMorseTrainerApp {
       });
     }
 
-    // 自测模拟蜂鸣按钮
-    if (this.dom.btnDecoderSelftest) {
-      this.dom.btnDecoderSelftest.addEventListener('click', () => {
-        this.triggerDecoderSelfTest();
-      });
-    }
-
     // 初始化示波器 Canvas 上下文
     if (this.dom.decoderCanvas) {
       this.decoderCanvasCtx = this.dom.decoderCanvas.getContext('2d');
     }
-  }
-
-  async triggerDecoderSelfTest() {
-    if (this.dom.btnDecoderSelftest) {
-      this.dom.btnDecoderSelftest.disabled = true;
-      this.dom.btnDecoderSelftest.innerHTML = `🔊 正在播放自测信号 (382)...`;
-    }
-
-    const testCode = '382';
-
-    try {
-      if (this.decoder && this.decoder.isRunning) {
-        this.showToast('🧪 直通注入 750Hz 382 蜂鸣，验证当前破译管线与屏幕识别...');
-        this.decoder.playSyntheticTestBeeps(testCode);
-      } else {
-        this.showToast('🧪 启动内置自测管线，播放 750Hz 382 蜂鸣并实时分析...');
-        await this.decoder.startSelfTest(testCode);
-      }
-    } catch (err) {
-      this.showToast(`自测启动失败: ${err.message}`, 4000);
-    }
-
-    setTimeout(() => {
-      if (this.dom.btnDecoderSelftest) {
-        this.dom.btnDecoderSelftest.disabled = false;
-        this.dom.btnDecoderSelftest.innerHTML = `🔊 播放自测音频 (382)`;
-      }
-    }, 7000);
   }
 
   updateDecoderStatusUI(status) {
@@ -1518,7 +1482,6 @@ class DeltaMorseTrainerApp {
       let sourceName = '麦克风';
       if (this.decoder) {
         if (this.decoder.sourceType === 'system') sourceName = '系统音频内录';
-        else if (this.decoder.sourceType === 'selftest') sourceName = '自测模拟源';
       }
       this.dom.decoderStatusText.textContent = isListening 
         ? `🟢 持续监听中 (${sourceName}) · 后台免休眠`

@@ -741,7 +741,7 @@
 
       // 运行状态
       this.isRunning = false;
-      this.sourceType = 'none'; // 'system' | 'microphone' | 'selftest'
+      this.sourceType = 'none'; // 'system' | 'microphone'
       this.animationId = null;
       this.latestState = null;
       this.lastProcessTime = 0;
@@ -857,68 +857,7 @@
       }
     }
 
-    /**
-     * 启动内置模拟自测模式 (直通注入 750Hz 382 密码蜂鸣，无需媒体流权限即可 100% 验证解码器与示波器)
-     */
-    async startSelfTest(code = '382') {
-      this.stop();
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioContextClass();
-      if (this.audioCtx.state === 'suspended') {
-        await this.audioCtx.resume();
-      }
 
-      this.sourceType = 'selftest';
-      await this.initAudioPipeline();
-      this.setStatus('listening');
-
-      this.playSyntheticTestBeeps(code);
-    }
-
-    /**
-     * 生成合成测试音频：直通注入带通滤波器并输出到扬声器，保证零延迟 100% 成功触发
-     */
-    playSyntheticTestBeeps(code = '382') {
-      if (!this.audioCtx || !this.bandpassFilter) return;
-      const ctx = this.audioCtx;
-      let t = ctx.currentTime + 0.15;
-      const dot = 0.125;
-      const dash = dot * 3;
-
-      for (let i = 0; i < code.length; i++) {
-        const digit = code[i];
-        const morseInfo = MORSE_DIGITS[digit];
-        if (!morseInfo) continue;
-        const symbols = morseInfo.code;
-
-        for (let s = 0; s < symbols.length; s++) {
-          const sym = symbols[s];
-          const dur = (sym === '·') ? dot : dash;
-
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(this.targetFreq, t);
-
-          gain.gain.setValueAtTime(0.0001, t);
-          gain.gain.linearRampToValueAtTime(0.7, t + 0.005);
-          gain.gain.setValueAtTime(0.7, t + dur - 0.005);
-          gain.gain.linearRampToValueAtTime(0.0001, t + dur);
-
-          osc.connect(gain);
-          // 直通注入 DSP 带通滤波器 (无需任何 MediaStreamDestination loopback，保证 100% 成功触发分析)
-          gain.connect(this.bandpassFilter);
-          // 同时输出至扬声器
-          gain.connect(ctx.destination);
-
-          osc.start(t);
-          osc.stop(t + dur);
-
-          t += dur + dot;
-        }
-        t += dot * 2;
-      }
-    }
 
     /**
      * 初始化 Web Audio API 信号处理管线
@@ -1496,7 +1435,6 @@
         decoderResultMeta: document.getElementById('decoder-result-meta'),
         btnCopyDecoderCode: document.getElementById('btn-copy-decoder-code'),
         btnClearDecoderCode: document.getElementById('btn-clear-decoder-code'),
-        btnDecoderSelftest: document.getElementById('btn-decoder-selftest'),
         decoderHistoryList: document.getElementById('decoder-history-list')
       };
     }
@@ -2724,45 +2662,10 @@
         });
       }
   
-      // 自测模拟蜂鸣按钮
-      if (this.dom.btnDecoderSelftest) {
-        this.dom.btnDecoderSelftest.addEventListener('click', () => {
-          this.triggerDecoderSelfTest();
-        });
-      }
-  
       // 初始化示波器 Canvas 上下文
       if (this.dom.decoderCanvas) {
         this.decoderCanvasCtx = this.dom.decoderCanvas.getContext('2d');
       }
-    }
-
-    async triggerDecoderSelfTest() {
-      if (this.dom.btnDecoderSelftest) {
-        this.dom.btnDecoderSelftest.disabled = true;
-        this.dom.btnDecoderSelftest.innerHTML = `🔊 正在播放自测信号 (382)...`;
-      }
-  
-      const testCode = '382';
-  
-      try {
-        if (this.decoder && this.decoder.isRunning) {
-          this.showToast('🧪 直通注入 750Hz 382 蜂鸣，验证当前破译管线与屏幕识别...');
-          this.decoder.playSyntheticTestBeeps(testCode);
-        } else {
-          this.showToast('🧪 启动内置自测管线，播放 750Hz 382 蜂鸣并实时分析...');
-          await this.decoder.startSelfTest(testCode);
-        }
-      } catch (err) {
-        this.showToast(`自测启动失败: ${err.message}`, 4000);
-      }
-  
-      setTimeout(() => {
-        if (this.dom.btnDecoderSelftest) {
-          this.dom.btnDecoderSelftest.disabled = false;
-          this.dom.btnDecoderSelftest.innerHTML = `🔊 播放自测音频 (382)`;
-        }
-      }, 7000);
     }
 
     updateDecoderStatusUI(status) {
@@ -2774,7 +2677,6 @@
         let sourceName = '麦克风';
         if (this.decoder) {
           if (this.decoder.sourceType === 'system') sourceName = '系统音频内录';
-          else if (this.decoder.sourceType === 'selftest') sourceName = '自测模拟源';
         }
         this.dom.decoderStatusText.textContent = isListening 
           ? `🟢 持续监听中 (${sourceName}) · 后台免休眠`
