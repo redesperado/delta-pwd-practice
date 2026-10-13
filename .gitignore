@@ -1,0 +1,13 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node & Build artifacts (if any in future)
+node_modules/
+dist/
+.wrangler/
+
+# Logs & temp
+*.log

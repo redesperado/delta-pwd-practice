@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三角洲行动 - 摩斯密码房听力训练模拟器</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%3E<text y=%2226%22 font-size=%2228%22>⚡</text></svg>">
+</head>
+<body>
+
+  <!-- 顶部战术导航栏 -->
+  <header class="header-bar">
+    <div class="brand-section">
+      <div class="brand-logo">Δ</div>
+      <div class="brand-title">
+        <h1>DELTA FORCE <span>TACTICAL MORSE SIM</span> <span class="tag">VER 2.0</span></h1>
+        <p>三角洲行动 // 密码房听声辨位特训终端</p>
+      </div>
+    </div>
+
+    <!-- 模式选择导航 -->
+    <nav class="nav-tabs">
+      <button id="tab-home" class="tab-btn active">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        作战大厅 (首页)
+      </button>
+      <button id="tab-daily-passwords" class="tab-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3 0 1.3-.84 2.4-2 2.82V14h2v2h-2v2h-2v-6.18c-1.16-.42-2-1.52-2-2.82 0-1.66 1.34-3 3-3z"/></svg>
+        每日密码速报 (A1B1B2C1)
+      </button>
+      <button id="tab-real-combat" class="tab-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+        实战开门特训
+      </button>
+      <button id="tab-single-flash" class="tab-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+        单字本能闯关
+      </button>
+      <button id="tab-terminal-hack" class="tab-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+        电脑终端速算
+      </button>
+    </nav>
+
+    <!-- 右侧情报手册触发 -->
+    <div class="header-actions">
+      <button id="btn-open-intel" class="intel-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        三角洲全密码情报指南
+      </button>
+    </div>
+  </header>
+
+  <!-- 主容器 -->
+  <main class="app-container">
+
+    <!-- 左侧演训主体 -->
+    <section class="main-stage">
+
+      <!-- 首页：作战大厅与特训中枢 (默认视图) -->
+      <div id="view-home" class="tactical-card">
+        <div class="card-header">
+          <h2>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            作战大厅 // DELTA CIPHER COMMAND HUB
+          </h2>
+          <div class="status-indicator">
+            <span class="indicator-dot"></span>
+            <span style="font-size: 11px; color: var(--delta-green); font-family: var(--font-mono);">SYSTEM READY · 全系统战备就绪</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="home-dashboard">
+
+            <!-- 战区大势概览横幅 -->
+            <div class="home-hero-banner">
+              <div class="hero-tag">TACTICAL INTEL & SIMULATION</div>
+              <h3 class="hero-title">三角洲行动 // 密码房听音破译与每日全图情报中枢</h3>
+              <p class="hero-desc">
+                针对各大机密战区密码房研制：高真还原实战电报音频与 2.8 秒轮次长停顿，收录航天基地 A1-B1-B2-C1 联动四位机制与全图每日密码实时速报。
+              </p>
+              <div class="hero-meta-row">
+                <span class="meta-pill"><span class="pill-dot"></span> 当前作战日：<strong id="home-today-date">--</strong></span>
+                <span class="meta-pill">🔄 密码刷新律：每日 00:00 (全服统一)</span>
+                <span class="meta-pill">🛡️ 安全准则：输错 3 次锁定 10 分钟 (无法使用爆炸物破门)</span>
+              </div>
+            </div>
+
+            <!-- 今日密码极速看板 -->
+            <div class="home-quick-passwords-strip">
+              <div class="strip-header">
+                <div class="strip-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  今日全图密码极速看板 (00:00 轮换)
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button id="btn-home-copy-all" class="btn-secondary" style="padding: 2px 8px; font-size: 11px;">
+                    📋 一键复制全部
+                  </button>
+                  <button id="btn-home-goto-daily" class="btn-link-action" style="font-size: 11px; color: var(--delta-cyan); background: none; border: none; cursor: pointer; text-decoration: underline;">
+                    进入完整速报站 ➔
+                  </button>
+                </div>
+              </div>
+              <div id="home-quick-list" class="quick-passwords-grid">
+                <!-- 动态注入快速卡片 -->
+              </div>
+            </div>
+
+            <!-- 四维特训与情报功能矩阵 -->
+            <div class="action-grid-title">特勤训练与情报功能矩阵 (OPERATION MATRIX)</div>
+            <div class="home-action-grid">
+              
+              <!-- 模块1：实战开门 -->
+              <div class="action-card" id="card-action-real-combat">
+                <div class="action-card-badge">核心推荐</div>
+                <div class="action-icon">🚪</div>
+                <h4>实战模拟开门</h4>
+                <p>沉浸式实战门禁终端，真实还原 2.8s 轮次长停顿与真实电报节奏，支持 3位/4位 密码盲听强化训练。</p>
+                <div class="action-btn-row">
+                  <span class="action-hotkey">Space 播放</span>
+                  <button class="btn-tactical btn-start-sim" data-target="realCombat">立即进入特训 ➔</button>
+                </div>
+              </div>
+
+              <!-- 模块2：单字突击 -->
+              <div class="action-card" id="card-action-single-flash">
+                <div class="action-card-badge">速度强化</div>
+                <div class="action-icon">⚡</div>
+                <h4>单字本能闯关</h4>
+                <p>0~9 单个摩斯数字快速反应突击，建立毫秒级条件反射本能，记录连续连击数与单音平均反应耗时。</p>
+                <div class="action-btn-row">
+                  <span class="action-hotkey">测速连击</span>
+                  <button class="btn-tactical btn-start-sim" data-target="singleFlash">开启单字突击 ➔</button>
+                </div>
+              </div>
+
+              <!-- 模块3：终端速算 -->
+              <div class="action-card" id="card-action-terminal-hack">
+                <div class="action-card-badge">视觉破解</div>
+                <div class="action-icon">💻</div>
+                <h4>电脑终端速算</h4>
+                <p>模拟对局中黑入笔记本与控制台屏幕，眼力速记 3 组摩斯符号，活用“前缀速算心法”3 秒破译开锁。</p>
+                <div class="action-btn-row">
+                  <span class="action-hotkey">眼力心算</span>
+                  <button class="btn-tactical btn-start-sim" data-target="terminalHack">启动终端速算 ➔</button>
+                </div>
+              </div>
+
+              <!-- 模块4：每日速报 -->
+              <div class="action-card" id="card-action-daily">
+                <div class="action-card-badge">每日刷新</div>
+                <div class="action-icon">📡</div>
+                <h4>每日密码速报站</h4>
+                <p>全图每日 00:00 刷新密码汇整，深度剖析航天基地 A1-B1-B2-C1 四点联动机制，支持网络同步与开黑一键复制。</p>
+                <div class="action-btn-row">
+                  <span class="action-hotkey">全图更新</span>
+                  <button class="btn-tactical btn-start-sim" data-target="dailyPasswords">查阅每日全图 ➔</button>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- 摩斯速解与实战规则 -->
+            <div class="action-grid-title" style="margin-top: 10px;">摩斯电码速解与实战规则</div>
+            <div class="home-doctrine-grid">
+              <div class="doctrine-card">
+                <div class="doc-num">01</div>
+                <div class="doc-body">
+                  <h5>🎯 首尾判别律 (轮次长空白)</h5>
+                  <p>一组播完必有约 2.8 秒静音空白。长空白后的第一声必为第 1 位密码，顺序完全固定清晰，耐心等待长空白即可，绝不需要穷举！</p>
+                </div>
+              </div>
+
+              <div class="doctrine-card">
+                <div class="doc-num">02</div>
+                <div class="doc-body">
+                  <h5>⚡ 首音定区间 (听音秒辨法)</h5>
+                  <p>首声为短音(嘀)➔必在 1~5(短音总数即数字)；首声为长音(哒)➔必在 6~0(5长为0，数短音逆推6~9)。</p>
+                </div>
+              </div>
+
+              <div class="doctrine-card">
+                <div class="doc-num">03</div>
+                <div class="doc-body">
+                  <h5>💻 电脑前缀速算 (眼力视觉速解)</h5>
+                  <p>点开头：数有几个点就是几 (1~5)；横开头：基数 5 加上后面的点数即为数字 (6~9)；5 个横杠即为 0。</p>
+                </div>
+              </div>
+
+              <div class="doctrine-card">
+                <div class="doc-num">04</div>
+                <div class="doc-body">
+                  <h5>🔒 输错惩罚机制 (3次锁死10分钟)</h5>
+                  <p>密码门连续输错 3 次将直接触发 10 分钟锁定惩罚；每日凌晨 00:00 全服统一轮换更新。</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 模式：每日密码速报站 (含航天基地 A1-B1-B2-C1 专属深度剖析) -->
+      <div id="view-daily-passwords" class="tactical-card" style="display: none;">
+        <div class="card-header">
+          <h2>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3 0 1.3-.84 2.4-2 2.82V14h2v2h-2v2h-2v-6.18c-1.16-.42-2-1.52-2-2.82 0-1.66 1.34-3 3-3z"/></svg>
+            每日密码速报站 // DAILY CIPHER NETWORK
+          </h2>
+          <div style="font-size: 11px; color: var(--delta-cyan); font-family: var(--font-mono);">
+            每日 00:00 全服轮换统一更新
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="daily-passwords-container">
+
+            <!-- 航天基地 A1-B1-B2-C1 联动四位密码机制深度特训科普卡片 -->
+            <div class="a1b1b2c1-banner">
+              <div class="a1-header">
+                <div class="a1-badge">核心机制专刊</div>
+                <div class="a1-title">航天基地 · 工业区组装室 2 楼【A1-B1-B2-C1】黑室密码门专属指南</div>
+              </div>
+              <p class="a1-desc">
+                组装室二楼的机密安全门（俗称黑室），门禁外侧显著喷涂有 <strong>A1、B1、B2、C1</strong> 四个联动代号。分别对应开启该大门 4 位密码中的第 1、第 2、第 3 和第 4 位：
+              </p>
+              <div class="a1-points-grid">
+                <div class="a1-point-box">
+                  <div class="point-code">A1</div>
+                  <div class="point-digit-label">对应第 1 位密码</div>
+                  <div class="point-note">组装室外围主通道</div>
+                </div>
+                <div class="a1-point-box">
+                  <div class="point-code">B1</div>
+                  <div class="point-digit-label">对应第 2 位密码</div>
+                  <div class="point-note">组装车间 1 楼侧翼</div>
+                </div>
+                <div class="a1-point-box">
+                  <div class="point-code">B2</div>
+                  <div class="point-digit-label">对应第 3 位密码</div>
+                  <div class="point-note">组装车间吊机下平台</div>
+                </div>
+                <div class="a1-point-box">
+                  <div class="point-code">C1</div>
+                  <div class="point-digit-label">对应第 4 位密码</div>
+                  <div class="point-note">2 楼黑室门前蜂鸣终端</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 操作与状态控制条 -->
+            <div class="daily-controls-bar">
+              <div class="daily-date-status">
+                <span>当前作战日：<strong id="daily-active-date" style="color: #fff;">--</strong></span>
+                <span class="status-indicator">
+                  <span class="indicator-dot"></span>
+                  <span id="daily-sync-status-text" style="color: var(--delta-green);">已载入今日基准情报</span>
+                </span>
+              </div>
+              <div class="daily-actions-btns">
+                <button id="btn-sync-daily" class="btn-tactical" style="padding: 6px 14px; font-size: 12px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                  检查网络最新更新
+                </button>
+                <button id="btn-copy-all-daily" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;">
+                  📋 一键复制全图密码
+                </button>
+                <button id="btn-edit-daily-mode" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;">
+                  ✏️ 自定义修改
+                </button>
+                <button id="btn-reset-daily" class="btn-secondary" style="padding: 6px 10px; font-size: 12px; display: none;" title="重置为推荐基准">
+                  ↺ 重置
+                </button>
+              </div>
+            </div>
+
+            <!-- 编辑模式提示栏 (默认隐藏) -->
+            <div id="daily-edit-hint" class="daily-edit-hint-box" style="display: none;">
+              <span>✏️ <strong>当前处于自定义校准模式：</strong>您可以直接在下方各密码框中修改数值，修改后点击“保存自定义”即可持久化保存在当前浏览器中，方便局内快速查阅。</span>
+              <button id="btn-save-daily-edits" class="btn-tactical" style="padding: 3px 10px; font-size: 11px;">保存自定义</button>
+            </div>
+
+            <!-- 全图密码卡片列表容器 -->
+            <div id="daily-cards-container" class="daily-cards-grid">
+              <!-- 动态注入各大地图卡片 -->
+            </div>
+
+            <!-- 情报来源与权威速查直达指南 -->
+            <div class="source-notice-box">
+              <div class="notice-title">📡 关于每日密码更新机制与社区速查渠道</div>
+              <p>
+                《三角洲行动》全服密码统一在每日 <strong>00:00 (UTC+8)</strong> 由官方服务器轮换。本系统内置每日日期智能校验与本地持久化记忆功能。若浏览器因跨域网络限制无法自动读取外网动态接口，您可点击【自定义修改】直接输入，或通过以下权威渠道一键校对：
+              </p>
+              <div class="source-links-row">
+                <span class="source-tag">📱 官方特勤助手 / 掌上三角洲</span>
+                <span class="source-tag">🎮 网易UU加速器 · 三角洲每日密码站</span>
+                <span class="source-tag">📹 抖音/快手/B站 搜索【三角洲行动每日密码】</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 模式一：实战模拟开锁视图 (默认非激活，隐藏) -->
+      <div id="view-real-combat" class="tactical-card" style="display: none;">
+        <div class="card-header">
+          <h2>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+            实战密码锁破译终端 (TACTICAL CIPHER LOCK)
+          </h2>
+          <div style="display: flex; gap: 6px;">
+            <button id="btn-len-3" class="btn-secondary active" style="padding: 4px 10px; font-size: 11px;">3位密码 (推荐实战)</button>
+            <button id="btn-len-4" class="btn-secondary" style="padding: 4px 10px; font-size: 11px;">4位密码</button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="keypad-terminal">
+            
+            <!-- 电子液晶屏幕 -->
+            <div id="terminal-screen" class="terminal-screen">
+              <div class="screen-hud-top">
+                <span class="status-indicator">
+                  <span class="indicator-dot"></span>
+                  <span id="screen-status-text">DECODING // 3 DIGITS</span>
+                </span>
+                <span>CIPHER-MK4</span>
+              </div>
+
+              <!-- 密码槽显示 -->
+              <div id="code-slots-container" class="code-display-slots">
+                <!-- 动态生成 slot -->
+              </div>
+
+              <div id="screen-message" class="screen-message">
+                听取电报音，输入密码开门
+              </div>
+            </div>
+
+            <!-- 视觉发光节奏条（支持新手辅助或一键盲听） -->
+            <div id="rhythm-visualizer" class="rhythm-visualizer">
+              <div class="visualizer-top">
+                <span>RHYTHM SENSOR // 节奏同步指示器</span>
+                <span style="color: var(--delta-cyan);">实时信号</span>
+              </div>
+              <div class="signal-bar-track">
+                <div id="pulse-light" class="signal-pulse-light"></div>
+              </div>
+              <div id="symbol-display-container" class="rhythm-dots-display">
+                <!-- 符号高亮标识 -->
+              </div>
+            </div>
+
+            <!-- 控制按钮 -->
+            <div class="playback-controls">
+              <button id="btn-play-pause" class="btn-tactical">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                暂停播放
+              </button>
+              <button id="btn-replay" class="btn-secondary" title="快捷键: 空格">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+                重新聆听 (Space)
+              </button>
+              <button id="btn-next-door" class="btn-secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                换一道门锁
+              </button>
+            </div>
+
+            <!-- 拟真实体战术小键盘 -->
+            <div class="tactical-keypad">
+              <button class="key-btn" data-val="1">1<span class="sub">·----</span></button>
+              <button class="key-btn" data-val="2">2<span class="sub">··---</span></button>
+              <button class="key-btn" data-val="3">3<span class="sub">···--</span></button>
+              
+              <button class="key-btn" data-val="4">4<span class="sub">····-</span></button>
+              <button class="key-btn" data-val="5">5<span class="sub">·····</span></button>
+              <button class="key-btn" data-val="6">6<span class="sub">-····</span></button>
+              
+              <button class="key-btn" data-val="7">7<span class="sub">--···</span></button>
+              <button class="key-btn" data-val="8">8<span class="sub">---··</span></button>
+              <button class="key-btn" data-val="9">9<span class="sub">----·</span></button>
+              
+              <button class="key-btn action-clear" data-val="CLEAR">C<span class="sub">退格</span></button>
+              <button class="key-btn" data-val="0">0<span class="sub">-----</span></button>
+              <button class="key-btn action-enter" data-val="ENTER">ENT<span class="sub">开锁</span></button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 模式二：单字反应速记突击视图 -->
+      <div id="view-single-flash" class="tactical-card" style="display: none;">
+        <div class="card-header">
+          <h2>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.01-4.09l-2.45-1.44C16.19 17.74 14.24 19 12 19z"/></svg>
+            单字本能条件反射突击 (INSTINCT REACTION)
+          </h2>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">
+            目标：不经思考秒辨单个数字
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="single-mode-container">
+            
+            <!-- 统计仪表板 -->
+            <div class="combo-dashboard">
+              <div class="stat-item">
+                <span id="single-combo-text" class="stat-val">0 (最高 0)</span>
+                <span class="stat-lbl">连击数 COMBO</span>
+              </div>
+              <div class="stat-item">
+                <span id="single-acc-text" class="stat-val amber">100%</span>
+                <span class="stat-lbl">辨识正确率</span>
+              </div>
+              <div class="stat-item">
+                <span id="single-avg-time-text" class="stat-val">0ms</span>
+                <span class="stat-lbl">平均反应时延</span>
+              </div>
+            </div>
+
+            <!-- 听音中央大屏 -->
+            <div class="single-prompt-screen">
+              <div class="audio-waveform-icon">🔊</div>
+              <div id="single-prompt-message" style="font-family: var(--font-mono); font-size: 14px; text-align: center; padding: 0 12px;">
+                仔细听单字发音，快速点按答案！
+              </div>
+            </div>
+
+            <!-- 播放与跳过 -->
+            <div style="display: flex; gap: 12px;">
+              <button id="btn-single-replay" class="btn-tactical">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+                再听一次 (Space)
+              </button>
+              <button id="btn-single-next" class="btn-secondary">
+                下一题
+              </button>
+            </div>
+
+            <!-- 0~9 快速数字选项选择网格 -->
+            <div id="single-choices-grid" class="single-selection-grid">
+              <button class="digit-choice-btn" data-digit="0">0</button>
+              <button class="digit-choice-btn" data-digit="1">1</button>
+              <button class="digit-choice-btn" data-digit="2">2</button>
+              <button class="digit-choice-btn" data-digit="3">3</button>
+              <button class="digit-choice-btn" data-digit="4">4</button>
+              <button class="digit-choice-btn" data-digit="5">5</button>
+              <button class="digit-choice-btn" data-digit="6">6</button>
+              <button class="digit-choice-btn" data-digit="7">7</button>
+              <button class="digit-choice-btn" data-digit="8">8</button>
+              <button class="digit-choice-btn" data-digit="9">9</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 模式三：电脑终端屏幕视觉速算破译视图 -->
+      <div id="view-terminal-hack" class="tactical-card" style="display: none;">
+        <div class="card-header">
+          <h2>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+            电脑终端屏幕视觉速算 (TERMINAL CIPHER HACK)
+          </h2>
+          <div style="font-size: 11px; color: var(--delta-cyan); font-family: var(--font-mono);">
+            口诀：点开头数点数 (1~5) | 横开头5加点数 (6~9) | 5横为0
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="terminal-hack-container">
+            
+            <!-- 破译测速统计看板 -->
+            <div class="combo-dashboard">
+              <div class="stat-item">
+                <span id="hack-solved-count" class="stat-val">0</span>
+                <span class="stat-lbl">成功破解次数</span>
+              </div>
+              <div class="stat-item">
+                <span id="hack-best-time" class="stat-val" style="color: var(--delta-cyan);">--</span>
+                <span class="stat-lbl">最快神速纪录</span>
+              </div>
+              <div class="stat-item">
+                <span id="hack-avg-time" class="stat-val amber">0.0s</span>
+                <span class="stat-lbl">平均破译耗时</span>
+              </div>
+            </div>
+
+            <!-- 拟真黑客电脑液晶屏幕 -->
+            <div id="hack-screen" class="hack-monitor-screen">
+              <div class="screen-hud-top" style="margin-bottom: 8px;">
+                <span style="color: var(--delta-cyan);">SYSTEM: SECURE CONSOLE // DECRYPTING CIPHER</span>
+                <span id="hack-timer-badge" style="color: var(--delta-amber); font-weight: 700;">0.0s</span>
+              </div>
+
+              <!-- 视觉摩斯符号大字卡片展示 -->
+              <div id="hack-morse-cards-row" class="hack-cards-row">
+                <!-- 动态生成 3 组大字符 -->
+              </div>
+
+              <!-- 玩家输入的密码槽 -->
+              <div id="hack-input-slots-container" class="code-display-slots" style="margin: 12px 0 6px 0;">
+                <!-- 动态生成 slot -->
+              </div>
+
+              <!-- 屏幕状态提示与速算推导解析 -->
+              <div id="hack-status-message" class="screen-message" style="min-height: 24px;">
+                肉眼识别上方摩斯代码，心算后输入 3 位密码黑入终端！
+              </div>
+              <div id="hack-explain-row" class="hack-explain-row" style="display: none;">
+                <!-- 显示推导详情 -->
+              </div>
+            </div>
+
+            <!-- 下一题控制 -->
+            <div style="display: flex; gap: 12px;">
+              <button id="btn-hack-next" class="btn-secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                切换下一台电脑
+              </button>
+            </div>
+
+            <!-- 实体键盘交互 -->
+            <div class="tactical-keypad">
+              <button class="key-btn" data-val="1">1<span class="sub">1点</span></button>
+              <button class="key-btn" data-val="2">2<span class="sub">2点</span></button>
+              <button class="key-btn" data-val="3">3<span class="sub">3点</span></button>
+              
+              <button class="key-btn" data-val="4">4<span class="sub">4点</span></button>
+              <button class="key-btn" data-val="5">5<span class="sub">5点</span></button>
+              <button class="key-btn" data-val="6">6<span class="sub">5+1</span></button>
+              
+              <button class="key-btn" data-val="7">7<span class="sub">5+2</span></button>
+              <button class="key-btn" data-val="8">8<span class="sub">5+3</span></button>
+              <button class="key-btn" data-val="9">9<span class="sub">5+4</span></button>
+              
+              <button class="key-btn action-clear" data-val="CLEAR">C<span class="sub">退格</span></button>
+              <button class="key-btn" data-val="0">0<span class="sub">5横</span></button>
+              <button class="key-btn action-enter" data-val="ENTER">ENT<span class="sub">破解</span></button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 右侧控制中心与小抄 -->
+    <aside class="sidebar">
+
+      <!-- 战术声学参数调节面板 -->
+      <div class="tactical-card">
+        <div class="card-header">
+          <h2>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+            声学与实战控制
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="control-group">
+
+            <!-- 播放语速 -->
+            <div class="control-item">
+              <div class="control-label-row">
+                <span>电报语速 (SPEED)</span>
+                <span id="val-speed" class="val">1.0x</span>
+              </div>
+              <input type="range" id="slider-speed" min="0.6" max="1.6" step="0.1" value="1.0">
+              <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">
+                <span>0.6x (新手慢速)</span>
+                <span>1.0x (游戏标准)</span>
+                <span>1.6x (极速)</span>
+              </div>
+            </div>
+
+            <!-- 音调频率 -->
+            <div class="control-item">
+              <div class="control-label-row">
+                <span>蜂鸣音调 (PITCH)</span>
+                <span id="val-pitch" class="val">750Hz</span>
+              </div>
+              <input type="range" id="slider-pitch" min="500" max="1000" step="25" value="750">
+            </div>
+
+            <!-- 音量 -->
+            <div class="control-item">
+              <div class="control-label-row">
+                <span>提示音音量</span>
+                <span id="val-volume" class="val">80%</span>
+              </div>
+              <input type="range" id="slider-volume" min="0" max="100" step="5" value="80">
+            </div>
+
+            <hr style="border: none; border-top: 1px solid var(--border-subtle);">
+
+            <!-- 新手视觉辅助 -->
+            <div class="switch-row">
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 13px; font-weight: 600;">节奏发光辅助</span>
+                <span style="font-size: 10px; color: var(--text-muted);">关闭后进入纯盲听实战</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="switch-visual" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <!-- 战场环境杂音干扰 -->
+            <div class="switch-row">
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 13px; font-weight: 600;">战场环境底噪</span>
+                <span style="font-size: 10px; color: var(--text-muted);">模拟实战无线电/风噪干扰</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="switch-ambient">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <!-- 环境音量 -->
+            <div id="ambient-control-row" class="control-item" style="display: none;">
+              <div class="control-label-row">
+                <span>环境底噪强度</span>
+                <span id="val-ambient-vol" class="val">15%</span>
+              </div>
+              <input type="range" id="slider-ambient-vol" min="5" max="60" step="5" value="15">
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 摩斯数字对照小抄（带试听） -->
+      <div class="tactical-card">
+        <div class="card-header">
+          <h2>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+            摩斯数字速查 (点击试听)
+          </h2>
+        </div>
+        <div class="card-body">
+          <div id="cheat-sheet-list" class="cheat-sheet-list">
+            <!-- 动态生成 0~9 小抄 -->
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- 底部快捷键与状态提示条 -->
+  <footer class="footer-bar">
+    <div>
+      <span>快捷操作：</span>
+      <span class="hotkey-tag">0~9 / 小键盘</span> 数字输入
+      <span class="hotkey-tag">Backspace</span> 退格
+      <span class="hotkey-tag">Enter</span> 确认开门
+      <span class="hotkey-tag">Space</span> 重新播放/暂停
+      <span class="hotkey-tag">Esc</span> 关闭弹窗
+    </div>
+    <div style="color: var(--delta-green);">
+      SYSTEM STATUS: OPTIMAL // DELTA FORCE CIPHER LAB
+    </div>
+  </footer>
+
+  <!-- 三角洲全地图密码情报指南模态框 -->
+  <div id="intel-modal-overlay" class="modal-overlay">
+    <div class="intel-modal">
+      <div class="modal-header">
+        <h3>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+          三角洲行动 // 全密码机制战术情报手册
+        </h3>
+        <button id="btn-close-intel" class="modal-close-btn">&times;</button>
+      </div>
+      <div id="intel-modal-content" class="modal-content">
+        <!-- 动态注入情报内容 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 战术悬浮反馈提示 (Toast) -->
+  <div id="tactical-toast" class="tactical-toast"></div>
+
+  <!-- 载入主逻辑脚本 (支持双击文件直接打开与标准Web服务器运行) -->
+  <script src="main.js"></script>
+</body>
+</html>
