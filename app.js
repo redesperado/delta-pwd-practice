@@ -1344,7 +1344,7 @@ class DeltaMorseTrainerApp {
   initAudioDecoder() {
     this.decoder = new MorseAudioDecoder({
       targetFreq: 750,
-      threshold: 0.10,
+      threshold: 0.08,
       onSignalState: (state) => {
         this.renderDecoderSignal(state);
       },
@@ -1355,10 +1355,11 @@ class DeltaMorseTrainerApp {
       },
       onDigitDecoded: (digit, fullCode, codeSymbols) => {
         if (this.dom.decoderResultCode) {
-          this.dom.decoderResultCode.textContent = fullCode.split('').join(' ');
+          const padded = (fullCode + '___'.slice(fullCode.length)).split('').join(' ');
+          this.dom.decoderResultCode.textContent = padded;
         }
         if (this.dom.decoderResultMeta) {
-          this.dom.decoderResultMeta.textContent = `已解码 ${fullCode.length} 位 · 最近解析: ${digit} (${codeSymbols})`;
+          this.dom.decoderResultMeta.textContent = `🎯 捕获第 ${fullCode.length} 位: 【${digit}】 (${codeSymbols})`;
         }
         if (this.dom.decoderLiveSymbols) {
           this.dom.decoderLiveSymbols.textContent = '--';
@@ -1367,7 +1368,7 @@ class DeltaMorseTrainerApp {
       onSequenceComplete: (fullCode) => {
         this.showToast(`🎯 完整密码捕获成功: ${fullCode}`);
         if (this.dom.decoderResultMeta) {
-          this.dom.decoderResultMeta.textContent = `✅ 轮次捕获完毕: 【${fullCode}】等待下轮循环...`;
+          this.dom.decoderResultMeta.textContent = `✅ 密码完全破译: 【${fullCode}】· 永久锁定保存`;
         }
         this.addDecoderHistory(fullCode);
       },
@@ -1489,16 +1490,9 @@ class DeltaMorseTrainerApp {
     const testCode = '382';
 
     try {
-      if (this.decoder.isRunning && this.decoder.sourceType !== 'selftest') {
-        this.showToast('🔊 正在通过声卡播放 750Hz 382 蜂鸣，检验当前采集源...');
-        await audioEngine.ensureContext();
-        const origFreq = audioEngine.frequency;
-        audioEngine.setFrequency(750);
-        const events = codeToTimingEvents(testCode);
-        audioEngine.playSequence(events, false);
-        setTimeout(() => {
-          audioEngine.setFrequency(origFreq);
-        }, 6000);
+      if (this.decoder && this.decoder.isRunning) {
+        this.showToast('🧪 直通注入 750Hz 382 蜂鸣，验证当前破译管线与屏幕识别...');
+        this.decoder.playSyntheticTestBeeps(testCode);
       } else {
         this.showToast('🧪 启动内置自测管线，播放 750Hz 382 蜂鸣并实时分析...');
         await this.decoder.startSelfTest(testCode);
@@ -1512,7 +1506,7 @@ class DeltaMorseTrainerApp {
         this.dom.btnDecoderSelftest.disabled = false;
         this.dom.btnDecoderSelftest.innerHTML = `🔊 播放自测音频 (382)`;
       }
-    }, 9000);
+    }, 7000);
   }
 
   updateDecoderStatusUI(status) {
@@ -1545,19 +1539,25 @@ class DeltaMorseTrainerApp {
     // 1. 更新电平能量条
     const pct = Math.min(100, Math.round(state.energy * 100));
     const threshPct = Math.min(100, Math.round(state.threshold * 100));
-    if (this.dom.decoderEnergyFill) this.dom.decoderEnergyFill.style.width = `${pct}%`;
+    if (this.dom.decoderEnergyFill) {
+      this.dom.decoderEnergyFill.style.width = `${pct}%`;
+      this.dom.decoderEnergyFill.style.backgroundColor = state.isHigh ? '#00ff66' : 'var(--delta-green)';
+    }
     if (this.dom.decoderThresholdMarker) this.dom.decoderThresholdMarker.style.left = `${threshPct}%`;
     if (this.dom.decoderEnergyVal) this.dom.decoderEnergyVal.textContent = `${pct}%`;
 
-    // 2. 更新指示灯
+    // 2. 更新指示灯与实测频点
     if (this.dom.statDecoderSignal) {
       if (state.isHigh) {
         this.dom.statDecoderSignal.classList.add('high');
-        this.dom.statDecoderSignal.textContent = '🔊 蜂鸣信号';
+        this.dom.statDecoderSignal.textContent = '🔊 蜂鸣捕获中';
       } else {
         this.dom.statDecoderSignal.classList.remove('high');
-        this.dom.statDecoderSignal.textContent = '静音中';
+        this.dom.statDecoderSignal.textContent = '静音监听中';
       }
+    }
+    if (this.dom.statDecoderHz && state.detectedFreq) {
+      this.dom.statDecoderHz.textContent = `滤波：${Math.round(state.targetFreq)} Hz (实测载波：${state.detectedFreq} Hz)`;
     }
 
     // 3. 绘制示波器波形

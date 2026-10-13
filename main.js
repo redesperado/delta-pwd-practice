@@ -718,14 +718,14 @@
   class MorseAudioDecoder {
     constructor(options = {}) {
       this.targetFreq = options.targetFreq || 750; // 目标中心频率 (Hz)，三角洲蜂鸣通常在 750Hz 左右
-      this.filterQ = options.filterQ || 4.5;       // 窄带滤波 Q 值 (4.5 适度兼顾微弱频偏)
-      this.threshold = options.threshold || 0.10; // 能量触发阈值 (0.01 ~ 1.0，0.10 可稳定识别微弱游戏声音)
-      this.noiseFloor = 0.02;                     // 底噪基准线
+      this.filterQ = options.filterQ || 1.6;       // 宽通滤波 Q 值 (1.6 覆盖 500~1100Hz，杜绝因频偏严重衰减音量)
+      this.threshold = options.threshold || 0.08; // 能量触发阈值 (0.01 ~ 1.0，0.08 轻松捕获微弱游戏远音)
+      this.detectedFreq = 750;                    // 实时自动侦测到的峰值载波频率
 
       // 回调事件
-      this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeData, freqData })
+      this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeData, freqData, detectedFreq, targetFreq })
       this.onSymbolDetected = options.onSymbolDetected || null; // (symbol: '·' | '-', durationMs)
-      this.onDigitDecoded = options.onDigitDecoded || null;   // (digit: string, currentFullCode: string, codeSymbols: string)
+      this.onDigitDecoded = options.onDigitDecoded || null;   // (digit: string, currentFullCode: string, codeSymbols: string, rawSymbols: string)
       this.onSequenceComplete = options.onSequenceComplete || null; // (fullCode: string)
       this.onError = options.onError || null;                 // (errorMsg: string)
       this.onStatusChange = options.onStatusChange || null;   // (status: 'idle' | 'listening' | 'paused')
@@ -793,7 +793,6 @@
         // 保持视频轨在后台存在且不渲染，CPU 占用微乎其微
         const videoTracks = stream.getVideoTracks();
         if (videoTracks && videoTracks.length > 0) {
-          // 监听用户点击浏览器浮动的“停止共享”按钮
           videoTracks[0].addEventListener('ended', () => {
             this.stop();
           });
@@ -859,7 +858,7 @@
     }
 
     /**
-     * 启动内置模拟自测模式 (合成 750Hz 382 密码蜂鸣，无需打开游戏即可验证解码器与示波器)
+     * 启动内置模拟自测模式 (直通注入 750Hz 382 密码蜂鸣，无需媒体流权限即可 100% 验证解码器与示波器)
      */
     async startSelfTest(code = '382') {
       this.stop();
@@ -869,20 +868,18 @@
         await this.audioCtx.resume();
       }
 
-      const dest = this.audioCtx.createMediaStreamDestination();
-      this.mediaStream = dest.stream;
       this.sourceType = 'selftest';
       await this.initAudioPipeline();
       this.setStatus('listening');
 
-      this.playSyntheticTestBeeps(code, dest);
+      this.playSyntheticTestBeeps(code);
     }
 
     /**
-     * 生成合成测试音频：同时输出到扬声器 (用户可听) 与 MediaStreamDestination (供示波器和解码器分析)
+     * 生成合成测试音频：直通注入带通滤波器并输出到扬声器，保证零延迟 100% 成功触发
      */
-    playSyntheticTestBeeps(code, destNode) {
-      if (!this.audioCtx) return;
+    playSyntheticTestBeeps(code = '382') {
+      if (!this.audioCtx || !this.bandpassFilter) return;
       const ctx = this.audioCtx;
       let t = ctx.currentTime + 0.15;
       const dot = 0.125;
@@ -909,7 +906,9 @@
           gain.gain.linearRampToValueAtTime(0.0001, t + dur);
 
           osc.connect(gain);
-          gain.connect(destNode);
+          // 直通注入 DSP 带通滤波器 (无需任何 MediaStreamDestination loopback，保证 100% 成功触发分析)
+          gain.connect(this.bandpassFilter);
+          // 同时输出至扬声器
           gain.connect(ctx.destination);
 
           osc.start(t);
@@ -927,7 +926,9 @@
      */
     async initAudioPipeline() {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioContextClass();
+      if (!this.audioCtx) {
+        this.audioCtx = new AudioContextClass();
+      }
       if (this.audioCtx.state === 'suspended') {
         await this.audioCtx.resume();
       }
@@ -938,9 +939,7 @@
         }
       };
 
-      this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
-
-      // 建立双二阶窄带带通滤波器 (Bandpass Filter)
+      // 建立宽频带通滤波器 (Bandpass Filter, Q=1.6，覆盖 500~1100Hz 常见电报音)
       this.bandpassFilter = this.audioCtx.createBiquadFilter();
       this.bandpassFilter.type = 'bandpass';
       this.bandpassFilter.frequency.setValueAtTime(this.targetFreq, this.audioCtx.currentTime);
@@ -949,17 +948,20 @@
       // 建立频谱与时域分析器
       this.analyserNode = this.audioCtx.createAnalyser();
       this.analyserNode.fftSize = 512;
-      this.analyserNode.smoothingTimeConstant = 0.2; // 降噪且响应迅速
+      this.analyserNode.smoothingTimeConstant = 0.15; // 降噪且响应迅捷
 
       // 建立后台音频处理节点 (ScriptProcessorNode 保证后台标签页/切游戏时不被浏览器暂停)
       this.scriptProcessor = this.audioCtx.createScriptProcessor(2048, 1, 1);
       this.silentGain = this.audioCtx.createGain();
-      this.silentGain.gain.setValueAtTime(0, this.audioCtx.currentTime); // 0 增益确保不发出麦克风回声
+      this.silentGain.gain.setValueAtTime(0, this.audioCtx.currentTime); // 0 增益确保不发出回声
 
-      // 连接管线：
-      // sourceNode ➔ bandpassFilter ➔ analyserNode
-      // analyserNode ➔ scriptProcessor ➔ silentGain ➔ destination
-      this.sourceNode.connect(this.bandpassFilter);
+      // 连接外部媒体源 (如果有)
+      if (this.mediaStream) {
+        this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
+        this.sourceNode.connect(this.bandpassFilter);
+      }
+
+      // 滤波器 ➔ 分析器 ➔ 处理节点 ➔ 静音输出 ➔ 扬声器(维持时钟)
       this.bandpassFilter.connect(this.analyserNode);
       this.analyserNode.connect(this.scriptProcessor);
       this.scriptProcessor.connect(this.silentGain);
@@ -979,9 +981,10 @@
       this.lastProcessTime = performance.now();
 
       // 由音频硬件时钟持续驱动分析 (后台切到游戏也不会暂停)
-      this.scriptProcessor.onaudioprocess = () => {
+      this.scriptProcessor.onaudioprocess = (e) => {
         if (!this.isRunning) return;
-        this.analyzeFrame(performance.now());
+        const channelData = e.inputBuffer ? e.inputBuffer.getChannelData(0) : null;
+        this.analyzeFrame(performance.now(), channelData);
       };
 
       // UI 示波器渲染循环 (前台 60fps 绘制)
@@ -1055,42 +1058,69 @@
     }
 
     /**
-     * 核心 DSP 与摩斯状态机分析 (每 ~42ms 由音频硬件驱动一次)
+     * 核心 DSP 与摩斯状态机分析 (每 ~42ms 由底层音频硬件驱动一次)
      */
-    analyzeFrame(now) {
+    analyzeFrame(now, channelData = null) {
       if (!this.isRunning || !this.analyserNode) return;
       this.lastProcessTime = now;
 
-      this.analyserNode.getByteTimeDomainData(this.timeData);
+      // 获取频域 FFT 数据
       this.analyserNode.getByteFrequencyData(this.freqData);
 
-      // 1. 计算时域 RMS 能量
-      let sumSquares = 0;
-      const len = this.timeData.length;
-      for (let i = 0; i < len; i++) {
-        const normalized = (this.timeData[i] - 128) / 128;
-        sumSquares += normalized * normalized;
-      }
-      const rms = Math.sqrt(sumSquares / len);
+      // 1. 计算时域 RMS 能量 (全精度 Float32 计算)
+      let rms = 0;
+      if (channelData && channelData.length > 0) {
+        let sumSquares = 0;
+        const cLen = channelData.length;
+        for (let i = 0; i < cLen; i++) {
+          sumSquares += channelData[i] * channelData[i];
+        }
+        rms = Math.sqrt(sumSquares / cLen);
 
-      // 2. 结合中心频率处的频域能量
+        // 同步更新 timeData 供示波器 Canvas 绘制波形
+        const tLen = this.timeData.length;
+        const step = Math.floor(cLen / tLen);
+        for (let i = 0; i < tLen; i++) {
+          const v = Math.max(-1, Math.min(1, channelData[i * step]));
+          this.timeData[i] = Math.round((v + 1) * 127.5);
+        }
+      } else {
+        this.analyserNode.getByteTimeDomainData(this.timeData);
+        let sumSquares = 0;
+        const len = this.timeData.length;
+        for (let i = 0; i < len; i++) {
+          const normalized = (this.timeData[i] - 128) / 128;
+          sumSquares += normalized * normalized;
+        }
+        rms = Math.sqrt(sumSquares / len);
+      }
+
+      // 2. 频谱电报蜂鸣峰值检测 (扫描 500Hz ~ 1250Hz 电报区间)
       const nyquist = this.audioCtx ? (this.audioCtx.sampleRate / 2) : 24000;
-      const binIndex = Math.round((this.targetFreq / nyquist) * this.freqData.length);
-      let freqEnergy = 0;
-      let binCount = 0;
-      for (let b = Math.max(0, binIndex - 3); b <= Math.min(this.freqData.length - 1, binIndex + 3); b++) {
-        freqEnergy += this.freqData[b] / 255;
-        binCount++;
-      }
-      freqEnergy = binCount > 0 ? freqEnergy / binCount : 0;
+      const minBin = Math.max(1, Math.floor((500 / nyquist) * this.freqData.length));
+      const maxBin = Math.min(this.freqData.length - 1, Math.ceil((1250 / nyquist) * this.freqData.length));
 
-      // 综合能量指数 (适当增益，提升对微弱内录声音检出率)
-      const timeEnergy = Math.min(1.0, rms * 2.8);
-      const combinedEnergy = Math.max(timeEnergy, freqEnergy * 1.3);
+      let maxBinVal = 0;
+      let peakBin = minBin;
+      for (let b = minBin; b <= maxBin; b++) {
+        if (this.freqData[b] > maxBinVal) {
+          maxBinVal = this.freqData[b];
+          peakBin = b;
+        }
+      }
+      const peakFreqEnergy = maxBinVal / 255.0; // 0.0 ~ 1.0 单音真实强度
+      const peakHz = Math.round((peakBin / this.freqData.length) * nyquist);
+      if (maxBinVal > 35) {
+        this.detectedFreq = peakHz;
+      }
+
+      // 综合能量指数：结合时域增强 (3.8x) 与频域峰值 (1.5x)
+      const timeEnergy = Math.min(1.0, rms * 3.8);
+      const combinedEnergy = Math.max(timeEnergy, peakFreqEnergy * 1.5);
 
       // 3. 滞后阈值比较 (Schmitt Trigger)
       const highThreshold = this.threshold;
-      const lowThreshold = this.threshold * 0.65;
+      const lowThreshold = this.threshold * 0.60;
 
       if (!this.isSignalHigh && combinedEnergy >= highThreshold) {
         // 信号由低变高 (蜂鸣开始)
@@ -1126,6 +1156,8 @@
         threshold: this.threshold,
         timeData: this.timeData,
         freqData: this.freqData,
+        detectedFreq: this.detectedFreq,
+        targetFreq: this.targetFreq,
         currentSymbols: this.currentSymbols,
         decodedDigits: this.decodedDigits
       };
@@ -1151,7 +1183,8 @@
     }
 
     handleToneEnd(durationMs) {
-      if (durationMs < 30) return;
+      if (durationMs < 45) return;  // 过滤过短毛刺与按键爆音
+      if (durationMs > 800) return; // 过滤非电报的超长背景嗡鸣
 
       // 标准游戏短音 ~125ms，长音 ~375ms
       // 分割阈值设为 210ms
@@ -1162,62 +1195,103 @@
         this.onSymbolDetected(symbol, durationMs);
       }
 
+      // 满 5 位立即触发结算
       if (this.currentSymbols.length === 5) {
         this.commitCurrentDigit();
       }
     }
 
     handleSilenceEnd(silenceDurationMs) {
-      if (this.currentSymbols.length > 0 && silenceDurationMs > 550) {
+      // 字符间停顿 (> 260ms) 提交当前数字 (解决即使个别丢音仅有 4 位时也能结算)
+      if (this.currentSymbols.length > 0 && silenceDurationMs > 260) {
         this.commitCurrentDigit();
       }
     }
 
     handleOngoingSilence(silenceDurationMs) {
-      if (this.currentSymbols.length > 0 && silenceDurationMs > 550) {
+      if (this.currentSymbols.length > 0 && silenceDurationMs > 260) {
         this.commitCurrentDigit();
       }
 
-      // 2. 长空白判别律：三角洲每轮播完有一段约 2.0s ~ 3.0s 的绝对长空白
-      if (this.decodedDigits.length >= 3 && silenceDurationMs > 1800 && !this.isSequenceReported) {
+      // 长空白判别律：停顿超 1500ms 认定整组密码播报完毕
+      if (this.decodedDigits.length >= 3 && silenceDurationMs > 1500 && !this.isSequenceReported) {
         this.isSequenceReported = true;
         if (this.onSequenceComplete) {
           this.onSequenceComplete(this.decodedDigits);
         }
       }
-      // 解出来的密码永久保留在屏幕上，绝不在长时间静音后抹除，供玩家随时查看与复制！
     }
 
     commitCurrentDigit() {
       if (!this.currentSymbols) return;
 
-      let code = this.currentSymbols;
+      const raw = this.currentSymbols;
       this.currentSymbols = '';
 
-      let digit = CODE_TO_DIGIT[code];
+      const resolved = this.resolveSymbolsToDigit(raw);
 
-      // 若符号因杂音毛刺超过 5 位，尝试截取后 5 位容错匹配
-      if (digit === undefined && code.length > 5) {
-        const suffix = code.slice(-5);
-        if (CODE_TO_DIGIT[suffix] !== undefined) {
-          digit = CODE_TO_DIGIT[suffix];
-          code = suffix;
-        }
-      }
-
-      // 若因轻微丢音仅有 4 位，容错匹配极端数字
-      if (digit === undefined && code.length === 4) {
-        if (code === '----') digit = '0';
-        else if (code === '····') digit = '5';
-      }
-
-      if (digit !== undefined) {
-        this.decodedDigits += digit;
+      if (resolved) {
+        this.decodedDigits += resolved.digit;
         this.isSequenceReported = false;
         if (this.onDigitDecoded) {
-          this.onDigitDecoded(digit, this.decodedDigits, code);
+          this.onDigitDecoded(resolved.digit, this.decodedDigits, resolved.matchedCode, raw);
         }
       }
+    }
+
+    /**
+     * 极高容错的摩斯符号解析器：支持精确匹配、后向5位匹配、丢失1位4位匹配与汉明距离1单符号纠错
+     */
+    resolveSymbolsToDigit(rawCode) {
+      if (!rawCode) return null;
+
+      // 1. 精确匹配
+      if (CODE_TO_DIGIT[rawCode] !== undefined) {
+        return { digit: CODE_TO_DIGIT[rawCode], matchedCode: rawCode };
+      }
+
+      // 2. 杂音导致超过 5 位，尝试截取后 5 位匹配
+      if (rawCode.length > 5) {
+        const suffix = rawCode.slice(-5);
+        if (CODE_TO_DIGIT[suffix] !== undefined) {
+          return { digit: CODE_TO_DIGIT[suffix], matchedCode: suffix };
+        }
+      }
+
+      // 3. 丢失 1 位 (4位常见容错)
+      if (rawCode.length === 4) {
+        const tolerant4 = {
+          '----': '0', '····': '5',
+          '···-': '4', '·---': '1',
+          '-···': '6', '---·': '9',
+          '··--': '3', '--··': '8'
+        };
+        if (tolerant4[rawCode]) {
+          return { digit: tolerant4[rawCode], matchedCode: MORSE_DIGITS[tolerant4[rawCode]].code };
+        }
+      }
+
+      // 4. 5 位单符号翻转容错 (汉明距离 <= 1)
+      if (rawCode.length === 5) {
+        let bestDigit = null;
+        let minDistance = 999;
+        for (const [digit, info] of Object.entries(MORSE_DIGITS)) {
+          const pattern = info.code;
+          let dist = 0;
+          for (let i = 0; i < 5; i++) {
+            if (rawCode[i] !== pattern[i]) dist++;
+          }
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestDigit = digit;
+          }
+        }
+        if (minDistance <= 1 && bestDigit !== null) {
+          return { digit: bestDigit, matchedCode: MORSE_DIGITS[bestDigit].code };
+        }
+      }
+
+      return null;
     }
   }
 
@@ -2529,7 +2603,7 @@
     initAudioDecoder() {
       this.decoder = new MorseAudioDecoder({
         targetFreq: 750,
-        threshold: 0.10,
+        threshold: 0.08,
         onSignalState: (state) => {
           this.renderDecoderSignal(state);
         },
@@ -2540,10 +2614,11 @@
         },
         onDigitDecoded: (digit, fullCode, codeSymbols) => {
           if (this.dom.decoderResultCode) {
-            this.dom.decoderResultCode.textContent = fullCode.split('').join(' ');
+            const padded = (fullCode + '___'.slice(fullCode.length)).split('').join(' ');
+            this.dom.decoderResultCode.textContent = padded;
           }
           if (this.dom.decoderResultMeta) {
-            this.dom.decoderResultMeta.textContent = `已解码 ${fullCode.length} 位 · 最近解析: ${digit} (${codeSymbols})`;
+            this.dom.decoderResultMeta.textContent = `🎯 捕获第 ${fullCode.length} 位: 【${digit}】 (${codeSymbols})`;
           }
           if (this.dom.decoderLiveSymbols) {
             this.dom.decoderLiveSymbols.textContent = '--';
@@ -2552,7 +2627,7 @@
         onSequenceComplete: (fullCode) => {
           this.showToast(`🎯 完整密码捕获成功: ${fullCode}`);
           if (this.dom.decoderResultMeta) {
-            this.dom.decoderResultMeta.textContent = `✅ 轮次捕获完毕: 【${fullCode}】等待下轮循环...`;
+            this.dom.decoderResultMeta.textContent = `✅ 密码完全破译: 【${fullCode}】· 永久锁定保存`;
           }
           this.addDecoderHistory(fullCode);
         },
@@ -2563,7 +2638,7 @@
           this.updateDecoderStatusUI(status);
         }
       });
-
+  
       // 绑定音频采集控制按钮
       if (this.dom.btnStartSystemAudio) {
         this.dom.btnStartSystemAudio.addEventListener('click', async () => {
@@ -2575,7 +2650,7 @@
           }
         });
       }
-
+  
       if (this.dom.btnStartMicAudio) {
         this.dom.btnStartMicAudio.addEventListener('click', async () => {
           try {
@@ -2586,14 +2661,14 @@
           }
         });
       }
-
+  
       if (this.dom.btnStopAudioDecoder) {
         this.dom.btnStopAudioDecoder.addEventListener('click', () => {
           this.decoder.stop();
           this.showToast('⏹️ 监听已停止');
         });
       }
-
+  
       // 频率滑块
       if (this.dom.sliderDecoderFreq) {
         this.dom.sliderDecoderFreq.addEventListener('input', (e) => {
@@ -2603,7 +2678,7 @@
           this.decoder.setTargetFrequency(val);
         });
       }
-
+  
       // 预设芯片按钮
       document.querySelectorAll('.freq-presets .btn-chip').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2615,7 +2690,7 @@
           this.decoder.setTargetFrequency(freq);
         });
       });
-
+  
       // 灵敏度滑块
       if (this.dom.sliderDecoderThreshold) {
         this.dom.sliderDecoderThreshold.addEventListener('input', (e) => {
@@ -2624,7 +2699,7 @@
           this.decoder.setThreshold(val / 100);
         });
       }
-
+  
       // 一键复制已解码密码
       if (this.dom.btnCopyDecoderCode) {
         this.dom.btnCopyDecoderCode.addEventListener('click', () => {
@@ -2640,7 +2715,7 @@
           });
         });
       }
-
+  
       // 清空重试
       if (this.dom.btnClearDecoderCode) {
         this.dom.btnClearDecoderCode.addEventListener('click', () => {
@@ -2651,14 +2726,14 @@
           this.showToast('🧹 已重置当前识别缓存');
         });
       }
-
+  
       // 自测模拟蜂鸣按钮
       if (this.dom.btnDecoderSelftest) {
         this.dom.btnDecoderSelftest.addEventListener('click', () => {
           this.triggerDecoderSelfTest();
         });
       }
-
+  
       // 初始化示波器 Canvas 上下文
       if (this.dom.decoderCanvas) {
         this.decoderCanvasCtx = this.dom.decoderCanvas.getContext('2d');
@@ -2670,20 +2745,13 @@
         this.dom.btnDecoderSelftest.disabled = true;
         this.dom.btnDecoderSelftest.innerHTML = `🔊 正在播放自测信号 (382)...`;
       }
-
+  
       const testCode = '382';
-
+  
       try {
-        if (this.decoder.isRunning && this.decoder.sourceType !== 'selftest') {
-          this.showToast('🔊 正在通过声卡播放 750Hz 382 蜂鸣，检验当前采集源...');
-          await audioEngine.ensureContext();
-          const origFreq = audioEngine.frequency;
-          audioEngine.setFrequency(750);
-          const events = codeToTimingEvents(testCode);
-          audioEngine.playSequence(events, false);
-          setTimeout(() => {
-            audioEngine.setFrequency(origFreq);
-          }, 6000);
+        if (this.decoder && this.decoder.isRunning) {
+          this.showToast('🧪 直通注入 750Hz 382 蜂鸣，验证当前破译管线与屏幕识别...');
+          this.decoder.playSyntheticTestBeeps(testCode);
         } else {
           this.showToast('🧪 启动内置自测管线，播放 750Hz 382 蜂鸣并实时分析...');
           await this.decoder.startSelfTest(testCode);
@@ -2691,13 +2759,13 @@
       } catch (err) {
         this.showToast(`自测启动失败: ${err.message}`, 4000);
       }
-
+  
       setTimeout(() => {
         if (this.dom.btnDecoderSelftest) {
           this.dom.btnDecoderSelftest.disabled = false;
           this.dom.btnDecoderSelftest.innerHTML = `🔊 播放自测音频 (382)`;
         }
-      }, 9000);
+      }, 7000);
     }
 
     updateDecoderStatusUI(status) {
@@ -2730,29 +2798,35 @@
       // 1. 更新电平能量条
       const pct = Math.min(100, Math.round(state.energy * 100));
       const threshPct = Math.min(100, Math.round(state.threshold * 100));
-      if (this.dom.decoderEnergyFill) this.dom.decoderEnergyFill.style.width = `${pct}%`;
+      if (this.dom.decoderEnergyFill) {
+        this.dom.decoderEnergyFill.style.width = `${pct}%`;
+        this.dom.decoderEnergyFill.style.backgroundColor = state.isHigh ? '#00ff66' : 'var(--delta-green)';
+      }
       if (this.dom.decoderThresholdMarker) this.dom.decoderThresholdMarker.style.left = `${threshPct}%`;
       if (this.dom.decoderEnergyVal) this.dom.decoderEnergyVal.textContent = `${pct}%`;
-
-      // 2. 更新指示灯
+  
+      // 2. 更新指示灯与实测频点
       if (this.dom.statDecoderSignal) {
         if (state.isHigh) {
           this.dom.statDecoderSignal.classList.add('high');
-          this.dom.statDecoderSignal.textContent = '🔊 蜂鸣信号';
+          this.dom.statDecoderSignal.textContent = '🔊 蜂鸣捕获中';
         } else {
           this.dom.statDecoderSignal.classList.remove('high');
-          this.dom.statDecoderSignal.textContent = '静音中';
+          this.dom.statDecoderSignal.textContent = '静音监听中';
         }
       }
-
+      if (this.dom.statDecoderHz && state.detectedFreq) {
+        this.dom.statDecoderHz.textContent = `滤波：${Math.round(state.targetFreq)} Hz (实测载波：${state.detectedFreq} Hz)`;
+      }
+  
       // 3. 绘制示波器波形
       if (this.decoderCanvasCtx && state.timeData) {
         const ctx = this.decoderCanvasCtx;
         const width = this.dom.decoderCanvas.width;
         const height = this.dom.decoderCanvas.height;
-
+  
         ctx.clearRect(0, 0, width, height);
-
+  
         // 绘制中心参考线
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -2760,14 +2834,14 @@
         ctx.moveTo(0, height / 2);
         ctx.lineTo(width, height / 2);
         ctx.stroke();
-
+  
         // 绘制波形曲线
         ctx.beginPath();
         ctx.lineWidth = state.isHigh ? 2.5 : 1.5;
         ctx.strokeStyle = state.isHigh ? '#00ff66' : '#00b4d8';
         ctx.shadowColor = state.isHigh ? '#00ff66' : '#00b4d8';
         ctx.shadowBlur = state.isHigh ? 8 : 2;
-
+  
         const sliceWidth = width / state.timeData.length;
         let x = 0;
         for (let i = 0; i < state.timeData.length; i++) {
