@@ -241,8 +241,8 @@ export class MorseAudioDecoder {
     this.analyserNode.fftSize = 512;
     this.analyserNode.smoothingTimeConstant = 0.15; // 降噪且响应迅捷
 
-    // 建立后台音频处理节点 (ScriptProcessorNode 保证后台标签页/切游戏时不被浏览器暂停)
-    this.scriptProcessor = this.audioCtx.createScriptProcessor(2048, 1, 1);
+    // 建立后台音频处理节点 (1024 样本在 48kHz 下约为 21.3ms，时间分辨率极其锐利，杜绝拖尾)
+    this.scriptProcessor = this.audioCtx.createScriptProcessor(1024, 1, 1);
     this.silentGain = this.audioCtx.createGain();
     this.silentGain.gain.setValueAtTime(0, this.audioCtx.currentTime); // 0 增益确保不发出回声
 
@@ -254,7 +254,7 @@ export class MorseAudioDecoder {
 
     // 滤波器 ➔ 分析器 ➔ 处理节点 ➔ 静音输出 ➔ 扬声器(维持时钟)
     this.bandpassFilter.connect(this.analyserNode);
-    this.analyserNode.connect(this.scriptProcessor);
+    this.bandpassFilter.connect(this.scriptProcessor);
     this.scriptProcessor.connect(this.silentGain);
     this.silentGain.connect(this.audioCtx.destination);
 
@@ -349,7 +349,7 @@ export class MorseAudioDecoder {
   }
 
   /**
-   * 核心 DSP 与摩斯状态机分析 (每 ~42ms 由底层音频硬件驱动一次)
+   * 核心 DSP 与摩斯状态机分析 (每 ~21ms 由底层音频硬件驱动一次)
    */
   analyzeFrame(now, channelData = null) {
     if (!this.isRunning || !this.analyserNode) return;
@@ -358,7 +358,7 @@ export class MorseAudioDecoder {
     // 获取频域 FFT 数据
     this.analyserNode.getByteFrequencyData(this.freqData);
 
-    // 1. 计算时域 RMS 能量 (全精度 Float32 计算)
+    // 1. 计算时域 RMS 能量 (全精度 Float32 计算，零衰减延迟)
     let rms = 0;
     if (channelData && channelData.length > 0) {
       let sumSquares = 0;
@@ -386,7 +386,7 @@ export class MorseAudioDecoder {
       rms = Math.sqrt(sumSquares / len);
     }
 
-    // 2. 频谱电报蜂鸣峰值检测 (扫描 500Hz ~ 1250Hz 电报区间)
+    // 2. 频谱电报蜂鸣峰值侦测 (扫描 500Hz ~ 1250Hz 电报区间)
     const nyquist = this.audioCtx ? (this.audioCtx.sampleRate / 2) : 24000;
     const minBin = Math.max(1, Math.floor((500 / nyquist) * this.freqData.length));
     const maxBin = Math.min(this.freqData.length - 1, Math.ceil((1250 / nyquist) * this.freqData.length));
@@ -399,21 +399,19 @@ export class MorseAudioDecoder {
         peakBin = b;
       }
     }
-    const peakFreqEnergy = maxBinVal / 255.0; // 0.0 ~ 1.0 单音真实强度
     const peakHz = Math.round((peakBin / this.freqData.length) * nyquist);
     if (maxBinVal > 35) {
       this.detectedFreq = peakHz;
     }
 
-    // 综合能量指数：结合时域增强 (3.8x) 与频域峰值 (1.5x)
-    const timeEnergy = Math.min(1.0, rms * 3.8);
-    const combinedEnergy = Math.max(timeEnergy, peakFreqEnergy * 1.5);
+    // 综合能量指数：纯由带通滤波后的时域 RMS 驱动，彻底消除 FFT 拖尾将点延长为划的问题
+    const energy = Math.min(1.0, rms * 2.8);
 
     // 3. 滞后阈值比较 (Schmitt Trigger)
     const highThreshold = this.threshold;
-    const lowThreshold = this.threshold * 0.60;
+    const lowThreshold = this.threshold * 0.55;
 
-    if (!this.isSignalHigh && combinedEnergy >= highThreshold) {
+    if (!this.isSignalHigh && energy >= highThreshold) {
       // 信号由低变高 (蜂鸣开始)
       const silenceDuration = now - this.lowStartTime;
       this.handleSilenceEnd(silenceDuration);
@@ -428,7 +426,7 @@ export class MorseAudioDecoder {
       this.isSignalHigh = true;
       this.highStartTime = now;
       this.lastStateChangeTime = now;
-    } else if (this.isSignalHigh && combinedEnergy < lowThreshold) {
+    } else if (this.isSignalHigh && energy < lowThreshold) {
       // 信号由高变低 (蜂鸣结束)
       const toneDuration = now - this.highStartTime;
       this.handleToneEnd(toneDuration);
@@ -443,7 +441,7 @@ export class MorseAudioDecoder {
 
     this.latestState = {
       isHigh: this.isSignalHigh,
-      energy: combinedEnergy,
+      energy: energy,
       threshold: this.threshold,
       timeData: this.timeData,
       freqData: this.freqData,
@@ -474,12 +472,11 @@ export class MorseAudioDecoder {
   }
 
   handleToneEnd(durationMs) {
-    if (durationMs < 45) return;  // 过滤过短毛刺与按键爆音
-    if (durationMs > 800) return; // 过滤非电报的超长背景嗡鸣
+    if (durationMs < 40) return;  // 过滤过短毛刺与按键爆音
+    if (durationMs > 850) return; // 过滤非电报的超长背景嗡鸣
 
-    // 标准游戏短音 ~125ms，长音 ~375ms
-    // 分割阈值设为 210ms
-    const symbol = durationMs < 210 ? '·' : '-';
+    // 标准游戏短音 ~125ms，长音 ~375ms，精确分割阈值为 200ms
+    const symbol = durationMs < 200 ? '·' : '-';
     this.currentSymbols += symbol;
 
     if (this.onSymbolDetected) {
