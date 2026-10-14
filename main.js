@@ -216,7 +216,7 @@
     });
   }
 
-  const DAILY_PASSWORDS_CONFIG = [
+  const DAILY_PASSWORDS_CONFIG_CN = [
     {
       id: 'space-city-a1b1b2c1',
       mapName: '航天基地 (A1-B1-B2-C1 组装室)',
@@ -224,8 +224,8 @@
       tag: '核心必争',
       tagType: 'core',
       loot: '隐秘协议箱 / 顶级航天电子元件 / 核心大红',
-      defaultCode: '7419',
-      breakdown: 'A1=7 · B1=4 · B2=1 · C1=9',
+      defaultCode: '0201',
+      breakdown: 'A1=0 · B1=2 · B2=0 · C1=1',
       note: '门上标有 A1·B1·B2·C1 四个联动代号，分别对应4位密码中的第1、2、3、4位！'
     },
     {
@@ -235,7 +235,7 @@
       tag: '热门常驻',
       tagType: 'popular',
       loot: '首通专属彩蛋箱 / 高阶防具 / 保险箱大红',
-      defaultCode: '6268',
+      defaultCode: '0144',
       breakdown: '',
       note: '每日凌晨全服刷新统一 4 位密码，输入错误 3 次锁定 10 分钟。'
     },
@@ -246,18 +246,18 @@
       tag: '战术要地',
       tagType: 'normal',
       loot: '高级武器配件包 / 彩蛋箱 / 高阶物资',
-      defaultCode: '5831',
+      defaultCode: '8288',
       breakdown: '',
       note: '地道墙体带有警示标，门禁终端输入当日统一 4 位密码。'
     },
     {
       id: 'barkesh-bathhouse',
-      mapName: '巴克什 (大浴场后勤通道)',
+      mapName: '巴克什 (老浴场后勤通道)',
       pointDesc: '大浴场北侧更衣室后门 ➔ 狭长后勤走廊尽头',
       tag: '热门搜刮',
       tagType: 'popular',
       loot: '大红物品高概率点 / 高级医疗物资包',
-      defaultCode: '4392',
+      defaultCode: '4400',
       breakdown: '',
       note: '每日凌晨统一轮换密码，输错 3 次锁定 10 分钟。'
     },
@@ -268,11 +268,93 @@
       tag: '特殊轮换',
       tagType: 'normal',
       loot: '机密战术补给箱 / 防暴装备 / 大红',
-      defaultCode: '8165',
+      defaultCode: '2643',
       breakdown: '',
       note: '重刑监区防暴安全锁，每日定时统一重置。'
+    },
+    {
+      id: 'az3-nuclear-glasshouse',
+      mapName: 'AZ3核电站 (海水处理区玻璃房)',
+      pointDesc: '海水处理区西侧独栋玻璃房间内密码门',
+      tag: '新图速递',
+      tagType: 'popular',
+      loot: '高阶战术物资箱 / 机密协议配件 / 显卡大红',
+      defaultCode: '2520',
+      breakdown: '',
+      note: '抵达海水处理区西侧独栋玻璃房间，输入 AZ3 今日密码即可开启。'
     }
   ];
+
+  const DAILY_PASSWORDS_CONFIG_GLOBAL = [
+    {
+      id: 'space-city-a1b1b2c1',
+      mapName: '航天基地 (Space City A1-B1-B2-C1)',
+      pointDesc: '工业区组装室二楼控制室 (Assembly Room 2F)',
+      tag: '核心必争',
+      tagType: 'core',
+      loot: '隐秘协议箱 / 顶级航天电子元件 / 核心大红',
+      defaultCode: '0201',
+      breakdown: 'A1=0 · B1=2 · B2=0 · C1=1',
+      note: '门上标有 A1·B1·B2·C1 四个联动代号，分别对应4位密码中的第1、2、3、4位！'
+    },
+    {
+      id: 'zero-dam-watergate',
+      mapName: '零号大坝 (Zero Dam Underground)',
+      pointDesc: '主变电站地下水闸红灯通道 (Substation Underground Sluice)',
+      tag: '热门常驻',
+      tagType: 'popular',
+      loot: '首通专属彩蛋箱 / 高阶防具 / 保险箱大红',
+      defaultCode: '0144',
+      breakdown: '',
+      note: '每日统一刷新 4 位密码，输入错误 3 次锁定 10 分钟。'
+    },
+    {
+      id: 'longbow-valley-zone3',
+      mapName: '长弓溪谷 (Layali Grove Bunker)',
+      pointDesc: '荒废村庄右下方地下暗门 (Abandoned Village Bunker)',
+      tag: '战术要地',
+      tagType: 'normal',
+      loot: '高级武器配件包 / 彩蛋箱 / 高阶物资',
+      defaultCode: '8288',
+      breakdown: '',
+      note: '地道墙体带有警示标，门禁终端输入当日统一 4 位密码。'
+    },
+    {
+      id: 'barkesh-bathhouse',
+      mapName: '巴克什 (Brakkesh Bathhouse)',
+      pointDesc: '老浴场北侧后勤走廊尽头 (Old Bathhouse Hallway)',
+      tag: '热门搜刮',
+      tagType: 'popular',
+      loot: '大红物品高概率点 / 高级医疗物资包',
+      defaultCode: '4400',
+      breakdown: '',
+      note: '每日凌晨统一轮换密码，输错 3 次锁定 10 分钟。'
+    },
+    {
+      id: 'tidal-prison-hall',
+      mapName: '潮汐监狱 (Tide Prison Hall)',
+      pointDesc: '行政区一楼大厅楼梯拐角防暴门 (Admin Building 1F)',
+      tag: '特殊轮换',
+      tagType: 'normal',
+      loot: '机密战术补给箱 / 防暴装备 / 大红',
+      defaultCode: '2643',
+      breakdown: '',
+      note: '重刑监区防暴安全锁，每日定时统一重置。'
+    },
+    {
+      id: 'az3-nuclear-glasshouse',
+      mapName: 'AZ3核电站 (AZ3 Nuclear Facility)',
+      pointDesc: '海水处理区西侧独栋玻璃房 (Water Treatment Glass Room)',
+      tag: '新图速递',
+      tagType: 'popular',
+      loot: '高阶战术物资箱 / 机密协议配件 / 显卡大红',
+      defaultCode: '2520',
+      breakdown: '',
+      note: '海水处理区独栋玻璃房间，输入 AZ3 今日密码即可开启。'
+    }
+  ];
+
+  const DAILY_PASSWORDS_CONFIG = DAILY_PASSWORDS_CONFIG_CN;
 
   /* =========================================================================
      2. Web Audio API 音频引擎与环境音效 (排他任务锁 + 独立小抄试听)
@@ -1247,9 +1329,11 @@
       this.decoderCanvasCtx = null;
       this.decoderHistory = [];
 
-      // 每日密码与日期状态
+      // 每日密码与服区/日期状态
       this.todayDateStr = '';
+      this.currentServer = localStorage.getItem('delta_daily_server') || 'cn'; // 'cn' | 'global'
       this.dailyPasswords = [];
+      this.dailyLastSyncTime = '';
       this.isDailyEditMode = false;
       this.toastTimer = null;
 
@@ -1334,11 +1418,16 @@
 
         // 首页 DOM
         homeTodayDate: document.getElementById('home-today-date'),
+        homeServerBadge: document.getElementById('home-server-badge'),
+        btnHomeToggleServer: document.getElementById('btn-home-toggle-server'),
         homeQuickList: document.getElementById('home-quick-list'),
         btnHomeCopyAll: document.getElementById('btn-home-copy-all'),
         btnHomeGotoDaily: document.getElementById('btn-home-goto-daily'),
 
         // 每日密码速报站 DOM
+        btnServerCN: document.getElementById('btn-server-cn'),
+        btnServerGlobal: document.getElementById('btn-server-global'),
+        dailyActiveServerText: document.getElementById('daily-active-server-text'),
         dailyActiveDate: document.getElementById('daily-active-date'),
         dailySyncStatusText: document.getElementById('daily-sync-status-text'),
         btnSyncDaily: document.getElementById('btn-sync-daily'),
@@ -1495,6 +1584,7 @@
       // 首页快捷操作
       if (this.dom.btnHomeGotoDaily) this.dom.btnHomeGotoDaily.addEventListener('click', () => this.switchMode('dailyPasswords'));
       if (this.dom.btnHomeCopyAll) this.dom.btnHomeCopyAll.addEventListener('click', () => this.copyAllDailyPasswords());
+      if (this.dom.btnHomeToggleServer) this.dom.btnHomeToggleServer.addEventListener('click', () => this.toggleDailyServer());
 
       // 首页功能矩阵卡片按钮直达
       document.querySelectorAll('.btn-start-sim').forEach(btn => {
@@ -1504,7 +1594,9 @@
         });
       });
 
-      // 每日密码速报站操作
+      // 每日密码速报站操作与服区切换
+      if (this.dom.btnServerCN) this.dom.btnServerCN.addEventListener('click', () => this.switchDailyServer('cn'));
+      if (this.dom.btnServerGlobal) this.dom.btnServerGlobal.addEventListener('click', () => this.switchDailyServer('global'));
       if (this.dom.btnSyncDaily) this.dom.btnSyncDaily.addEventListener('click', () => this.syncDailyPasswords());
       if (this.dom.btnCopyAllDaily) this.dom.btnCopyAllDaily.addEventListener('click', () => this.copyAllDailyPasswords());
       if (this.dom.btnEditDailyMode) this.dom.btnEditDailyMode.addEventListener('click', () => this.toggleDailyEditMode());
@@ -2296,17 +2388,37 @@
     }
 
     loadDailyPasswordsData() {
-      const saved = localStorage.getItem('delta_daily_passwords_v2');
+      const key = `delta_daily_passwords_${this.currentServer}_v3`;
+      const saved = localStorage.getItem(key);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            this.dailyPasswords = parsed;
+          if (parsed && parsed.date === this.todayDateStr && Array.isArray(parsed.passwords) && parsed.passwords.length > 0) {
+            this.dailyPasswords = parsed.passwords;
+            this.dailyLastSyncTime = parsed.lastUpdated || '';
             return;
           }
         } catch (e) {}
       }
-      this.dailyPasswords = JSON.parse(JSON.stringify(DAILY_PASSWORDS_CONFIG));
+      const baseConfig = this.currentServer === 'global' ? DAILY_PASSWORDS_CONFIG_GLOBAL : DAILY_PASSWORDS_CONFIG_CN;
+      this.dailyPasswords = JSON.parse(JSON.stringify(baseConfig));
+      this.dailyLastSyncTime = '';
+    }
+
+    switchDailyServer(server) {
+      if (this.currentServer === server) return;
+      this.currentServer = server;
+      localStorage.setItem('delta_daily_server', server);
+      this.loadDailyPasswordsData();
+      this.renderDailyPasswordsView();
+      this.renderHomeView();
+      const serverName = server === 'global' ? '国际服 (Global)' : '国内服 (国服)';
+      this.showToast(`🌐 已切换至【${serverName}】每日密码！`);
+    }
+
+    toggleDailyServer() {
+      const target = this.currentServer === 'cn' ? 'global' : 'cn';
+      this.switchDailyServer(target);
     }
 
     /* =========================================================================
@@ -2316,6 +2428,14 @@
     renderHomeView() {
       if (this.dom.homeTodayDate) {
         this.dom.homeTodayDate.textContent = this.todayDateStr;
+      }
+
+      if (this.dom.homeServerBadge) {
+        this.dom.homeServerBadge.textContent = this.currentServer === 'global' ? '国际服 (Global)' : '国内服 (国服)';
+      }
+
+      if (this.dom.btnHomeToggleServer) {
+        this.dom.btnHomeToggleServer.textContent = this.currentServer === 'global' ? '切换国内服' : '切换国际服';
       }
 
       if (this.dom.homeQuickList) {
@@ -2348,7 +2468,7 @@
     }
 
     /* =========================================================================
-       每日密码速报站渲染与交互 (含航天基地 A1-B1-B2-C1 专属剖析)
+       每日密码速报站渲染与交互 (含航天基地 A1-B1-B2-C1 专属剖析与双服区支持)
        ========================================================================= */
 
     renderDailyPasswordsView() {
@@ -2356,8 +2476,31 @@
         this.dom.dailyActiveDate.textContent = this.todayDateStr;
       }
 
+      // 服区切换按钮激活态同步
+      if (this.dom.btnServerCN) {
+        this.dom.btnServerCN.classList.toggle('active', this.currentServer === 'cn');
+      }
+      if (this.dom.btnServerGlobal) {
+        this.dom.btnServerGlobal.classList.toggle('active', this.currentServer === 'global');
+      }
+
+      // 服区文字指示
+      if (this.dom.dailyActiveServerText) {
+        this.dom.dailyActiveServerText.textContent = this.currentServer === 'global' ? '国际服 (Global)' : '国内服 (国服)';
+      }
+
+      // 情报同步状态指示
+      if (this.dom.dailySyncStatusText) {
+        if (this.dailyLastSyncTime) {
+          this.dom.dailySyncStatusText.textContent = `已同步网络最新情报 (${this.dailyLastSyncTime})`;
+        } else {
+          this.dom.dailySyncStatusText.textContent = '已载入今日基准情报';
+        }
+      }
+
       if (this.dom.btnResetDaily) {
-        const hasCustom = localStorage.getItem('delta_daily_passwords_v2');
+        const key = `delta_daily_passwords_${this.currentServer}_v3`;
+        const hasCustom = localStorage.getItem(key) || localStorage.getItem('delta_daily_passwords_v2');
         this.dom.btnResetDaily.style.display = hasCustom ? 'inline-flex' : 'none';
       }
 
@@ -2450,7 +2593,8 @@
     }
 
     copyAllDailyPasswords() {
-      let text = `【三角洲行动 每日密码速报 (${this.todayDateStr})】\n`;
+      const serverName = this.currentServer === 'global' ? '国际服 (Global)' : '国内服 (国服)';
+      let text = `【三角洲行动 每日密码速报 - ${serverName} (${this.todayDateStr})】\n`;
       this.dailyPasswords.forEach((item, idx) => {
         const code = item.code || item.defaultCode;
         if (item.id === 'space-city-a1b1b2c1') {
@@ -2460,16 +2604,16 @@
           text += `${idx + 1}. ${item.mapName}：${code}\n`;
         }
       });
-      text += `* 提示：每日 00:00 官方统一轮换；密码门无法被手雷或爆炸物破坏，连续输错 3 次锁定 10 分钟！`;
+      text += `* 提示：每日 00:00 官方统一轮换；密码门无法被爆炸物破坏，连续输错 3 次锁定 10 分钟！`;
 
       navigator.clipboard.writeText(text).then(() => {
-        this.showToast('📋 已复制今日全图密码，可直接粘贴分享至微信/QQ开黑群！');
+        this.showToast(`📋 已复制【${serverName}】今日全图密码，可直接粘贴分享！`);
       }).catch(() => {
         this.showToast('📋 复制成功！');
       });
     }
 
-    syncDailyPasswords() {
+    async syncDailyPasswords() {
       if (this.dom.btnSyncDaily) {
         this.dom.btnSyncDaily.disabled = true;
         this.dom.btnSyncDaily.innerHTML = `
@@ -2478,7 +2622,7 @@
         `;
       }
 
-      setTimeout(() => {
+      const resetBtnUI = () => {
         if (this.dom.btnSyncDaily) {
           this.dom.btnSyncDaily.disabled = false;
           this.dom.btnSyncDaily.innerHTML = `
@@ -2486,13 +2630,97 @@
             检查网络最新更新
           `;
         }
-        if (this.dom.dailySyncStatusText) {
-          this.dom.dailySyncStatusText.textContent = `已校准同步最新情报 (${new Date().toLocaleTimeString()})`;
+      };
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        const resp = await fetch('https://tmini.net/api/sjzmm?type=json', {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
         }
+
+        const json = await resp.json();
+        if (json && json.status === 'success' && json.data && Array.isArray(json.data.passwords)) {
+          const networkList = json.data.passwords;
+          
+          networkList.forEach(netItem => {
+            const rawName = (netItem.map_name || '').trim();
+            const pwd = (netItem.password || '').trim();
+            if (!pwd || pwd.length !== 4) return;
+
+            let targetId = '';
+            if (rawName.includes('AZ3') || rawName.includes('核电站')) {
+              targetId = 'az3-nuclear-glasshouse';
+            } else if (rawName.includes('零号') || rawName.includes('大坝')) {
+              targetId = 'zero-dam-watergate';
+            } else if (rawName.includes('长弓') || rawName.includes('溪谷')) {
+              targetId = 'longbow-valley-zone3';
+            } else if (rawName.includes('巴克什')) {
+              targetId = 'barkesh-bathhouse';
+            } else if (rawName.includes('航天')) {
+              targetId = 'space-city-a1b1b2c1';
+            } else if (rawName.includes('潮汐') || rawName.includes('监狱')) {
+              targetId = 'tidal-prison-hall';
+            }
+
+            if (targetId) {
+              const target = this.dailyPasswords.find(p => p.id === targetId);
+              if (target) {
+                target.code = pwd;
+                if (targetId === 'space-city-a1b1b2c1') {
+                  target.breakdown = `A1=${pwd[0]} · B1=${pwd[1]} · B2=${pwd[2]} · C1=${pwd[3]}`;
+                }
+              }
+            }
+          });
+
+          const syncTime = json.data.last_updated || new Date().toLocaleTimeString();
+          this.dailyLastSyncTime = syncTime;
+
+          // 持久化保存到对应服区的缓存
+          const key = `delta_daily_passwords_${this.currentServer}_v3`;
+          localStorage.setItem(key, JSON.stringify({
+            date: this.todayDateStr,
+            server: this.currentServer,
+            lastUpdated: syncTime,
+            passwords: this.dailyPasswords
+          }));
+
+          resetBtnUI();
+          this.renderDailyPasswordsView();
+          this.renderHomeView();
+          const serverLabel = this.currentServer === 'global' ? '国际服' : '国内服';
+          this.showToast(`🔄 今日【${serverLabel}】全图密码已成功与社区情报源实时同步！`);
+          return;
+        }
+        throw new Error('Invalid payload');
+      } catch (err) {
+        console.warn('Daily passwords network sync error:', err);
+        // 网络离线或跨域异常时的基准兜底校准
+        const baseConfig = this.currentServer === 'global' ? DAILY_PASSWORDS_CONFIG_GLOBAL : DAILY_PASSWORDS_CONFIG_CN;
+        this.dailyPasswords = JSON.parse(JSON.stringify(baseConfig));
+        const syncTime = new Date().toLocaleTimeString();
+        this.dailyLastSyncTime = syncTime;
+
+        const key = `delta_daily_passwords_${this.currentServer}_v3`;
+        localStorage.setItem(key, JSON.stringify({
+          date: this.todayDateStr,
+          server: this.currentServer,
+          lastUpdated: syncTime,
+          passwords: this.dailyPasswords
+        }));
+
+        resetBtnUI();
         this.renderDailyPasswordsView();
         this.renderHomeView();
-        this.showToast('🔄 今日全图密码已成功与服务器00:00数据校准对齐！');
-      }, 600);
+        this.showToast(`⚠️ 无法直接连通外部接口，已为您自动校准为今日战术基准密码！`);
+      }
     }
 
     toggleDailyEditMode() {
@@ -2512,23 +2740,39 @@
         const target = this.dailyPasswords.find(p => p.id === id);
         if (target && val.length > 0) {
           target.code = val;
+          if (id === 'space-city-a1b1b2c1' && val.length === 4) {
+            target.breakdown = `A1=${val[0]} · B1=${val[1]} · B2=${val[2]} · C1=${val[3]}`;
+          }
         }
       });
 
-      localStorage.setItem('delta_daily_passwords_v2', JSON.stringify(this.dailyPasswords));
+      const key = `delta_daily_passwords_${this.currentServer}_v3`;
+      localStorage.setItem(key, JSON.stringify({
+        date: this.todayDateStr,
+        server: this.currentServer,
+        lastUpdated: this.dailyLastSyncTime || new Date().toLocaleTimeString(),
+        passwords: this.dailyPasswords
+      }));
+
       this.isDailyEditMode = false;
       this.renderDailyPasswordsView();
       this.renderHomeView();
-      this.showToast('💾 已保存自定义密码到本地缓存！');
+      const serverLabel = this.currentServer === 'global' ? '国际服' : '国内服';
+      this.showToast(`💾 已保存【${serverLabel}】自定义密码到本地缓存！`);
     }
 
     resetDailyPasswords() {
+      const key = `delta_daily_passwords_${this.currentServer}_v3`;
+      localStorage.removeItem(key);
       localStorage.removeItem('delta_daily_passwords_v2');
-      this.dailyPasswords = JSON.parse(JSON.stringify(DAILY_PASSWORDS_CONFIG));
+      const baseConfig = this.currentServer === 'global' ? DAILY_PASSWORDS_CONFIG_GLOBAL : DAILY_PASSWORDS_CONFIG_CN;
+      this.dailyPasswords = JSON.parse(JSON.stringify(baseConfig));
+      this.dailyLastSyncTime = '';
       this.isDailyEditMode = false;
       this.renderDailyPasswordsView();
       this.renderHomeView();
-      this.showToast('↺ 已重置为推荐基准密码！');
+      const serverLabel = this.currentServer === 'global' ? '国际服' : '国内服';
+      this.showToast(`↺ 已重置【${serverLabel}】为基准密码！`);
     }
 
     /* =========================================================================

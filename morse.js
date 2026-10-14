@@ -230,9 +230,9 @@ export function getMorseVisualGroups(digitsStr) {
 }
 
 /**
- * 每日密码全图预设数据结构与各大地图机制信息 (含航天基地 A1-B1-B2-C1)
+ * 每日密码全图预设数据结构与各大地图机制信息 (含国服与国际服、航天基地 A1-B1-B2-C1、AZ3核电站等 6 大全图点位)
  */
-export const DAILY_PASSWORDS_CONFIG = [
+export const DAILY_PASSWORDS_CONFIG_CN = [
   {
     id: 'space-city-a1b1b2c1',
     mapName: '航天基地 (A1-B1-B2-C1 组装室)',
@@ -240,8 +240,8 @@ export const DAILY_PASSWORDS_CONFIG = [
     tag: '核心必争',
     tagType: 'core',
     loot: '隐秘协议箱 / 顶级航天电子元件 / 核心大红',
-    defaultCode: '7419',
-    breakdown: 'A1=7 · B1=4 · B2=1 · C1=9',
+    defaultCode: '0201',
+    breakdown: 'A1=0 · B1=2 · B2=0 · C1=1',
     note: '门上标有 A1·B1·B2·C1 四个联动代号，分别对应4位密码中的第1、2、3、4位！'
   },
   {
@@ -251,7 +251,7 @@ export const DAILY_PASSWORDS_CONFIG = [
     tag: '热门常驻',
     tagType: 'popular',
     loot: '首通专属彩蛋箱 / 高阶防具 / 保险箱大红',
-    defaultCode: '6268',
+    defaultCode: '0144',
     breakdown: '',
     note: '每日凌晨全服刷新统一 4 位密码，输入错误 3 次锁定 10 分钟。'
   },
@@ -262,18 +262,18 @@ export const DAILY_PASSWORDS_CONFIG = [
     tag: '战术要地',
     tagType: 'normal',
     loot: '高级武器配件包 / 彩蛋箱 / 高阶物资',
-    defaultCode: '5831',
+    defaultCode: '8288',
     breakdown: '',
     note: '地道墙体带有警示标，门禁终端输入当日统一 4 位密码。'
   },
   {
     id: 'barkesh-bathhouse',
-    mapName: '巴克什 (大浴场后勤通道)',
+    mapName: '巴克什 (老浴场后勤通道)',
     pointDesc: '大浴场北侧更衣室后门 ➔ 狭长后勤走廊尽头',
     tag: '热门搜刮',
     tagType: 'popular',
     loot: '大红物品高概率点 / 高级医疗物资包',
-    defaultCode: '4392',
+    defaultCode: '4400',
     breakdown: '',
     note: '每日凌晨统一轮换密码，输错 3 次锁定 10 分钟。'
   },
@@ -284,9 +284,91 @@ export const DAILY_PASSWORDS_CONFIG = [
     tag: '特殊轮换',
     tagType: 'normal',
     loot: '机密战术补给箱 / 防暴装备 / 大红',
-    defaultCode: '8165',
+    defaultCode: '2643',
     breakdown: '',
     note: '重刑监区防暴安全锁，每日定时统一重置。'
+  },
+  {
+    id: 'az3-nuclear-glasshouse',
+    mapName: 'AZ3核电站 (海水处理区玻璃房)',
+    pointDesc: '海水处理区西侧独栋玻璃房间内密码门',
+    tag: '新图速递',
+    tagType: 'popular',
+    loot: '高阶战术物资箱 / 机密协议配件 / 显卡大红',
+    defaultCode: '2520',
+    breakdown: '',
+    note: '抵达海水处理区西侧独栋玻璃房间，输入 AZ3 今日密码即可开启。'
   }
 ];
+
+export const DAILY_PASSWORDS_CONFIG_GLOBAL = [
+  {
+    id: 'space-city-a1b1b2c1',
+    mapName: '航天基地 (Space City A1-B1-B2-C1)',
+    pointDesc: '工业区组装室二楼控制室 (Assembly Room 2F)',
+    tag: '核心必争',
+    tagType: 'core',
+    loot: '隐秘协议箱 / 顶级航天电子元件 / 核心大红',
+    defaultCode: '0201',
+    breakdown: 'A1=0 · B1=2 · B2=0 · C1=1',
+    note: '门上标有 A1·B1·B2·C1 四个联动代号，分别对应4位密码中的第1、2、3、4位！'
+  },
+  {
+    id: 'zero-dam-watergate',
+    mapName: '零号大坝 (Zero Dam Underground)',
+    pointDesc: '主变电站地下水闸红灯通道 (Substation Underground Sluice)',
+    tag: '热门常驻',
+    tagType: 'popular',
+    loot: '首通专属彩蛋箱 / 高阶防具 / 保险箱大红',
+    defaultCode: '0144',
+    breakdown: '',
+    note: '每日统一刷新 4 位密码，输入错误 3 次锁定 10 分钟。'
+  },
+  {
+    id: 'longbow-valley-zone3',
+    mapName: '长弓溪谷 (Layali Grove Bunker)',
+    pointDesc: '荒废村庄右下方地下暗门 (Abandoned Village Bunker)',
+    tag: '战术要地',
+    tagType: 'normal',
+    loot: '高级武器配件包 / 彩蛋箱 / 高阶物资',
+    defaultCode: '8288',
+    breakdown: '',
+    note: '地道墙体带有警示标，门禁终端输入当日统一 4 位密码。'
+  },
+  {
+    id: 'barkesh-bathhouse',
+    mapName: '巴克什 (Brakkesh Bathhouse)',
+    pointDesc: '老浴场北侧后勤走廊尽头 (Old Bathhouse Hallway)',
+    tag: '热门搜刮',
+    tagType: 'popular',
+    loot: '大红物品高概率点 / 高级医疗物资包',
+    defaultCode: '4400',
+    breakdown: '',
+    note: '每日凌晨统一轮换密码，输错 3 次锁定 10 分钟。'
+  },
+  {
+    id: 'tidal-prison-hall',
+    mapName: '潮汐监狱 (Tide Prison Hall)',
+    pointDesc: '行政区一楼大厅楼梯拐角防暴门 (Admin Building 1F)',
+    tag: '特殊轮换',
+    tagType: 'normal',
+    loot: '机密战术补给箱 / 防暴装备 / 大红',
+    defaultCode: '2643',
+    breakdown: '',
+    note: '重刑监区防暴安全锁，每日定时统一重置。'
+  },
+  {
+    id: 'az3-nuclear-glasshouse',
+    mapName: 'AZ3核电站 (AZ3 Nuclear Facility)',
+    pointDesc: '海水处理区西侧独栋玻璃房 (Water Treatment Glass Room)',
+    tag: '新图速递',
+    tagType: 'popular',
+    loot: '高阶战术物资箱 / 机密协议配件 / 显卡大红',
+    defaultCode: '2520',
+    breakdown: '',
+    note: '海水处理区独栋玻璃房间，输入 AZ3 今日密码即可开启。'
+  }
+];
+
+export const DAILY_PASSWORDS_CONFIG = DAILY_PASSWORDS_CONFIG_CN;
 

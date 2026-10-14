@@ -97,10 +97,13 @@
               <div class="strip-header">
                 <div class="strip-title">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                  今日全图密码极速看板 (00:00 轮换)
+                  今日全图密码极速看板 (<span id="home-server-badge" style="color: var(--delta-cyan); font-weight: 700;">国内服</span> · 00:00 轮换)
                 </div>
-                <div style="display: flex; gap: 8px;">
-                  <button id="btn-home-copy-all" class="btn-secondary" style="padding: 2px 8px; font-size: 11px;">
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <button id="btn-home-toggle-server" class="btn-secondary" style="padding: 3px 8px; font-size: 11px;">
+                    🔄 切换服区
+                  </button>
+                  <button id="btn-home-copy-all" class="btn-secondary" style="padding: 3px 8px; font-size: 11px;">
                     📋 一键复制全部
                   </button>
                   <button id="btn-home-goto-daily" class="btn-link-action" style="font-size: 11px; color: var(--delta-cyan); background: none; border: none; cursor: pointer; text-decoration: underline;">
@@ -226,8 +229,13 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3 0 1.3-.84 2.4-2 2.82V14h2v2h-2v2h-2v-6.18c-1.16-.42-2-1.52-2-2.82 0-1.66 1.34-3 3-3z"/></svg>
             每日密码速报站 // DAILY CIPHER NETWORK
           </h2>
-          <div style="font-size: 11px; color: var(--delta-cyan); font-family: var(--font-mono);">
-            每日 00:00 全服轮换统一更新
+          <div class="daily-server-switch-group">
+            <button id="btn-server-cn" class="btn-server-tab active" data-server="cn">
+              🇨🇳 国内服 (国服)
+            </button>
+            <button id="btn-server-global" class="btn-server-tab" data-server="global">
+              🌐 国际服 (Global)
+            </button>
           </div>
         </div>
 
@@ -270,7 +278,8 @@
             <!-- 操作与状态控制条 -->
             <div class="daily-controls-bar">
               <div class="daily-date-status">
-                <span>当前作战日：<strong id="daily-active-date" style="color: #fff;">--</strong></span>
+                <span>当前服区：<strong id="daily-active-server-text" style="color: var(--delta-cyan);">国内服 (国服)</strong></span>
+                <span>作战日：<strong id="daily-active-date" style="color: #fff;">--</strong></span>
                 <span class="status-indicator">
                   <span class="indicator-dot"></span>
                   <span id="daily-sync-status-text" style="color: var(--delta-green);">已载入今日基准情报</span>

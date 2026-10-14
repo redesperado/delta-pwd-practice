@@ -1555,6 +1555,43 @@ input:checked + .slider:before {
 }
 
 
+/* 服区切换控制组 (国服 vs 国际服) */
+.daily-server-switch-group {
+  display: flex;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.btn-server-tab {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-server-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-server-tab.active {
+  background: rgba(0, 229, 255, 0.15);
+  color: var(--delta-cyan);
+  border-color: var(--delta-cyan);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
 /* 控制栏 */
 .daily-controls-bar {
   display: flex;
@@ -1990,6 +2027,16 @@ input:checked + .slider:before {
   }
   .a1-desc {
     font-size: 11.5px;
+  }
+  .daily-server-switch-group {
+    width: 100%;
+    margin-top: 6px;
+  }
+  .btn-server-tab {
+    flex: 1;
+    justify-content: center;
+    padding: 6px 8px;
+    font-size: 11px;
   }
   .daily-controls-bar {
     padding: 10px 12px;
