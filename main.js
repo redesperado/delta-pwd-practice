@@ -799,13 +799,19 @@
 
   class MorseAudioDecoder {
     constructor(options = {}) {
-      this.targetFreq = options.targetFreq || 750; // 目标中心频率 (Hz)，三角洲蜂鸣通常在 750Hz 左右
-      this.filterQ = options.filterQ || 1.6;       // 宽通滤波 Q 值 (1.6 覆盖 500~1100Hz，杜绝因频偏严重衰减音量)
-      this.threshold = options.threshold || 0.08; // 能量触发阈值 (0.01 ~ 1.0，0.08 轻松捕获微弱游戏远音)
-      this.detectedFreq = 750;                    // 实时自动侦测到的峰值载波频率
+      // 目标中心频率 (Hz)：三角洲行动真实摩斯蜂鸣官方音高为 1570Hz (1550~1575Hz)
+      this.targetFreq = options.targetFreq || 1570;
+      this.filterQ = options.filterQ || 1.4;       // 宽通滤波 Q 值
+      this.autoTracking = options.autoTracking !== false; // 默认开启智能锁频
+      this.detectedFreq = 1570;                   // 实时自动侦测到的峰值载波频率
+
+      // 自适应信噪比与动态门限参数 (CFAR / AGC)
+      this.noiseFloor = 0.002;                    // 初始背景底噪
+      this.signalPeak = 0.025;                    // 初始蜂鸣峰值强度
+      this.sensitivityMultiplier = options.sensitivityMultiplier || 0.35; // 触发门限系数 (0.18 ~ 0.55，默认 0.35)
 
       // 回调事件
-      this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeData, freqData, detectedFreq, targetFreq })
+      this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeData, freqData, detectedFreq, targetFreq, noiseFloor, signalPeak, snr })
       this.onSymbolDetected = options.onSymbolDetected || null; // (symbol: '·' | '-', durationMs)
       this.onDigitDecoded = options.onDigitDecoded || null;   // (digit: string, currentFullCode: string, codeSymbols: string, rawSymbols: string)
       this.onSequenceComplete = options.onSequenceComplete || null; // (fullCode: string)
@@ -827,21 +833,35 @@
       this.animationId = null;
       this.latestState = null;
       this.lastProcessTime = 0;
+      this.lastTrackTime = 0;
 
-      // 摩斯状态机变量
+      // 摩斯状态机变量 (毫秒时钟)
       this.isSignalHigh = false;
       this.highStartTime = 0;
       this.lowStartTime = performance.now();
       this.lastStateChangeTime = performance.now();
+
+      // 真实游戏校准时序常量 (基于真实三角洲密码房录音标定)
+      // 点音 (Dot): 60ms ~ 130ms (典型 ~85ms)
+      // 划音 (Dash): 180ms ~ 420ms (典型 ~280ms)
+      // 点划判定分界: 160ms (<160ms 为点，>=160ms 为划)
+      // 字符微停顿 (Intra-char): 60ms ~ 120ms (典型 ~85ms)
+      // 数字间停顿 (Inter-digit): 300ms ~ 600ms (典型 ~450ms)
+      // 轮次间长停顿 (Inter-cycle): 2800ms ~ 6000ms (典型 ~3.5s)
+      this.dotDashSplitMs = 160;
+      this.minPulseMs = 35;        // 剔除 <35ms 偶发杂音毛刺
+      this.maxPulseMs = 650;       // 剔除 >650ms 持续性长杂音
+      this.charGapThresholdMs = 220; // 停顿超 220ms 结算当前数字
+      this.cycleGapThresholdMs = 1400; // 停顿超 1400ms 判定整组密码播报结束
 
       // 收集中的点划与数字
       this.currentSymbols = '';     // 当前正在录入的点划 (如 "···")
       this.decodedDigits = '';      // 当前轮次已识别出的完整密码 (如 "382")
       this.isSequenceReported = false; // 避免长空白期间重复触发完成
 
-      // 内部缓冲区
-      this.timeData = null;
-      this.freqData = null;
+      // 内部缓冲区 (提前预分配，杜绝未挂载分析器时调用空指针异常)
+      this.timeData = new Uint8Array(512);
+      this.freqData = new Uint8Array(256);
     }
 
     /**
@@ -939,8 +959,6 @@
       }
     }
 
-
-
     /**
      * 初始化 Web Audio API 信号处理管线
      * 采用 ScriptProcessorNode 驱动后台免休眠实时解码
@@ -960,7 +978,7 @@
         }
       };
 
-      // 建立宽频带通滤波器 (Bandpass Filter, Q=1.6，覆盖 500~1100Hz 常见电报音)
+      // 建立带通滤波器 (宽通 Q=1.4，平坦过渡，保证蜂鸣信号无衰减通过)
       this.bandpassFilter = this.audioCtx.createBiquadFilter();
       this.bandpassFilter.type = 'bandpass';
       this.bandpassFilter.frequency.setValueAtTime(this.targetFreq, this.audioCtx.currentTime);
@@ -969,9 +987,9 @@
       // 建立频谱与时域分析器
       this.analyserNode = this.audioCtx.createAnalyser();
       this.analyserNode.fftSize = 512;
-      this.analyserNode.smoothingTimeConstant = 0.15; // 降噪且响应迅捷
+      this.analyserNode.smoothingTimeConstant = 0.15;
 
-      // 建立后台音频处理节点 (1024 样本在 48kHz 下约为 21.3ms，时间分辨率极其锐利，杜绝拖尾)
+      // 建立后台音频处理节点 (1024 样本在 48kHz 下约为 21.3ms，时间分辨率极其锐利)
       this.scriptProcessor = this.audioCtx.createScriptProcessor(1024, 1, 1);
       this.silentGain = this.audioCtx.createGain();
       this.silentGain.gain.setValueAtTime(0, this.audioCtx.currentTime); // 0 增益确保不发出回声
@@ -982,7 +1000,7 @@
         this.sourceNode.connect(this.bandpassFilter);
       }
 
-      // 滤波器 ➔ 分析器 ➔ 处理节点 ➔ 静音输出 ➔ 扬声器(维持时钟)
+      // 滤波器 ➔ 分析器 ➔ 处理节点 ➔ 静音输出 ➔ 扬声器(维持硬件时钟)
       this.bandpassFilter.connect(this.analyserNode);
       this.bandpassFilter.connect(this.scriptProcessor);
       this.scriptProcessor.connect(this.silentGain);
@@ -1000,27 +1018,88 @@
       this.decodedDigits = '';
       this.isSequenceReported = false;
       this.lastProcessTime = performance.now();
+      this.lastTrackTime = performance.now();
 
-      // 由音频硬件时钟持续驱动分析 (后台切到游戏也不会暂停)
+      // 硬件时钟持续驱动分析
       this.scriptProcessor.onaudioprocess = (e) => {
         if (!this.isRunning) return;
         const channelData = e.inputBuffer ? e.inputBuffer.getChannelData(0) : null;
         this.analyzeFrame(performance.now(), channelData);
       };
 
-      // UI 示波器渲染循环 (前台 60fps 绘制)
+      // UI 示波器渲染循环
       this.renderLoop();
     }
 
-    setTargetFrequency(freq) {
-      this.targetFreq = Math.max(400, Math.min(1500, freq));
-      if (this.bandpassFilter && this.audioCtx) {
-        this.bandpassFilter.frequency.setTargetAtTime(this.targetFreq, this.audioCtx.currentTime, 0.05);
+    /**
+     * 计算指定频率的 Goertzel 单频共振能量
+     */
+    calcToneEnergy(pcm, freq, sampleRate = 48000) {
+      const len = pcm.length;
+      const w = (2 * Math.PI * freq) / sampleRate;
+      const c = 2 * Math.cos(w);
+      let s1 = 0, s2 = 0;
+      for (let i = 0; i < len; i++) {
+        const s = pcm[i] + c * s1 - s2;
+        s2 = s1;
+        s1 = s;
+      }
+      return Math.sqrt(Math.max(0, s2 * s2 + s1 * s1 - c * s1 * s2)) / (len / 2);
+    }
+
+    /**
+     * 扫描 750Hz ~ 1800Hz 频段，自动探测并锁定纯音峰值
+     */
+    detectDominantFrequency(pcm, sampleRate = 48000) {
+      let maxE = 0;
+      let bestF = this.targetFreq;
+      let totalE = 0;
+      let count = 0;
+
+      for (let f = 750; f <= 1800; f += 25) {
+        const e = this.calcToneEnergy(pcm, f, sampleRate);
+        totalE += e;
+        count++;
+        if (e > maxE) {
+          maxE = e;
+          bestF = f;
+        }
+      }
+      const avgE = totalE / count;
+      const peakiness = maxE / (avgE + 0.00001); // 纯音尖锐度比值
+      return { freq: bestF, energy: maxE, peakiness };
+    }
+
+    setTargetFrequency(freq, isAuto = false) {
+      if (freq === 'auto') {
+        this.autoTracking = true;
+        return;
+      }
+      this.autoTracking = isAuto;
+      const num = parseInt(freq, 10);
+      if (!isNaN(num)) {
+        this.targetFreq = Math.max(500, Math.min(2200, num));
+        this.detectedFreq = this.targetFreq;
+        if (this.bandpassFilter && this.audioCtx) {
+          this.bandpassFilter.frequency.setTargetAtTime(this.targetFreq, this.audioCtx.currentTime, 0.05);
+        }
       }
     }
 
+    /**
+     * 设置灵敏度 (0.10 ~ 0.90)
+     * 灵敏度越高，触发所需信噪比门限越低
+     */
+    setSensitivity(val) {
+      // 0.10 对应高门限 0.52 (迟钝/抗杂音)
+      // 0.90 对应低门限 0.20 (灵敏/微弱音)
+      const normalized = Math.max(0.1, Math.min(0.9, val));
+      this.sensitivityMultiplier = 0.55 - (normalized * 0.35); // 0.20 ~ 0.515
+    }
+
+    // 兼容老接口
     setThreshold(val) {
-      this.threshold = Math.max(0.02, Math.min(0.95, val));
+      this.setSensitivity(val);
     }
 
     stop() {
@@ -1079,22 +1158,27 @@
     }
 
     /**
-     * 核心 DSP 与摩斯状态机分析 (每 ~21ms 由底层音频硬件驱动一次)
+     * 核心 DSP 与自适应摩斯状态机分析 (每 ~21ms 执行一次)
      */
     analyzeFrame(now, channelData = null) {
-      if (!this.isRunning || !this.analyserNode) return;
+      if (!this.isRunning) return;
       this.lastProcessTime = now;
 
-      // 获取频域 FFT 数据
-      this.analyserNode.getByteFrequencyData(this.freqData);
+      // 获取频域 FFT 数据供可视化
+      if (this.analyserNode && this.freqData) {
+        this.analyserNode.getByteFrequencyData(this.freqData);
+      }
 
-      // 1. 计算时域 RMS 能量 (全精度 Float32 计算，零衰减延迟)
+      const sr = this.audioCtx ? this.audioCtx.sampleRate : 48000;
+
+      let pcm = channelData;
       let rms = 0;
-      if (channelData && channelData.length > 0) {
+
+      if (pcm && pcm.length > 0) {
         let sumSquares = 0;
-        const cLen = channelData.length;
+        const cLen = pcm.length;
         for (let i = 0; i < cLen; i++) {
-          sumSquares += channelData[i] * channelData[i];
+          sumSquares += pcm[i] * pcm[i];
         }
         rms = Math.sqrt(sumSquares / cLen);
 
@@ -1102,7 +1186,7 @@
         const tLen = this.timeData.length;
         const step = Math.floor(cLen / tLen);
         for (let i = 0; i < tLen; i++) {
-          const v = Math.max(-1, Math.min(1, channelData[i * step]));
+          const v = Math.max(-1, Math.min(1, pcm[i * step]));
           this.timeData[i] = Math.round((v + 1) * 127.5);
         }
       } else {
@@ -1116,38 +1200,63 @@
         rms = Math.sqrt(sumSquares / len);
       }
 
-      // 2. 频谱电报蜂鸣峰值侦测 (扫描 500Hz ~ 1250Hz 电报区间)
-      const nyquist = this.audioCtx ? (this.audioCtx.sampleRate / 2) : 24000;
-      const minBin = Math.max(1, Math.floor((500 / nyquist) * this.freqData.length));
-      const maxBin = Math.min(this.freqData.length - 1, Math.ceil((1250 / nyquist) * this.freqData.length));
+      // 1. 计算目标中心频率的 Goertzel 能量
+      let toneAmp = 0;
+      if (pcm && pcm.length > 0) {
+        toneAmp = this.calcToneEnergy(pcm, this.targetFreq, sr);
+      } else {
+        // 降级使用 FFT 提取目标频点能量
+        const nyquist = sr / 2;
+        const bin = Math.round((this.targetFreq / nyquist) * this.freqData.length);
+        toneAmp = (this.freqData[bin] || 0) / 255.0;
+      }
 
-      let maxBinVal = 0;
-      let peakBin = minBin;
-      for (let b = minBin; b <= maxBin; b++) {
-        if (this.freqData[b] > maxBinVal) {
-          maxBinVal = this.freqData[b];
-          peakBin = b;
+      // 2. 自动载波锁频 (Auto Frequency Tracking)
+      // 每 40ms 在有声区间扫描纯音峰值，排除环境语音并自动微调中心频点
+      if (pcm && this.autoTracking && (now - this.lastTrackTime > 40)) {
+        this.lastTrackTime = now;
+        if (rms > this.noiseFloor * 1.5 && rms > 0.002) {
+          const scan = this.detectDominantFrequency(pcm, sr);
+          // peakiness > 2.2 说明是高度纯净的电报纯音，非宽频人声/爆炸低音
+          if (scan.peakiness > 2.2 && scan.energy > this.noiseFloor * 1.8) {
+            this.targetFreq = Math.round(this.targetFreq * 0.85 + scan.freq * 0.15);
+            this.detectedFreq = scan.freq;
+            toneAmp = Math.max(toneAmp, scan.energy);
+            if (this.bandpassFilter && this.audioCtx) {
+              this.bandpassFilter.frequency.setTargetAtTime(this.targetFreq, this.audioCtx.currentTime, 0.05);
+            }
+          }
         }
-      }
-      const peakHz = Math.round((peakBin / this.freqData.length) * nyquist);
-      if (maxBinVal > 35) {
-        this.detectedFreq = peakHz;
+      } else if (!this.autoTracking) {
+        this.detectedFreq = this.targetFreq;
       }
 
-      // 综合能量指数：纯由带通滤波后的时域 RMS 驱动，彻底消除 FFT 拖尾将点延长为划的问题
-      const energy = Math.min(1.0, rms * 2.8);
+      // 3. 动态底噪与峰值包络自适应跟踪 (Leaky Integrator / AGC)
+      if (toneAmp < this.noiseFloor * 1.5) {
+        // 静音平缓期：底噪缓慢向当前平底收敛
+        this.noiseFloor = this.noiseFloor * 0.98 + toneAmp * 0.02;
+      } else if (toneAmp > this.signalPeak) {
+        // 突发蜂鸣：快速跟随峰值
+        this.signalPeak = toneAmp;
+      } else {
+        // 缓慢衰减峰值 (防止单次按键过响导致后续无法触发)
+        this.signalPeak = this.signalPeak * 0.999 + toneAmp * 0.001;
+      }
+      this.noiseFloor = Math.max(0.0005, this.noiseFloor);
+      this.signalPeak = Math.max(this.noiseFloor * 2.5, this.signalPeak);
 
-      // 3. 滞后阈值比较 (Schmitt Trigger)
-      const highThreshold = this.threshold;
-      const lowThreshold = this.threshold * 0.55;
+      // 4. 自适应滞后阈值 (Schmitt Trigger)
+      const span = this.signalPeak - this.noiseFloor;
+      const dynamicHigh = this.noiseFloor + span * this.sensitivityMultiplier;
+      const dynamicLow = this.noiseFloor + span * (this.sensitivityMultiplier * 0.52);
 
-      if (!this.isSignalHigh && energy >= highThreshold) {
+      if (!this.isSignalHigh && toneAmp >= dynamicHigh) {
         // 信号由低变高 (蜂鸣开始)
         const silenceDuration = now - this.lowStartTime;
         this.handleSilenceEnd(silenceDuration);
 
-        // 若上一轮完整密码已结算完毕且已静音超 1.2s，新声音响起代表新的一轮开始，重置前一轮
-        if (this.isSequenceReported && silenceDuration > 1200) {
+        // 若上一轮完整密码已结算完毕且停顿超 1.4s，新声音响起代表新的一轮开始，重置前一轮
+        if (this.isSequenceReported && silenceDuration > this.cycleGapThresholdMs) {
           this.decodedDigits = '';
           this.currentSymbols = '';
           this.isSequenceReported = false;
@@ -1156,7 +1265,7 @@
         this.isSignalHigh = true;
         this.highStartTime = now;
         this.lastStateChangeTime = now;
-      } else if (this.isSignalHigh && energy < lowThreshold) {
+      } else if (this.isSignalHigh && toneAmp < dynamicLow) {
         // 信号由高变低 (蜂鸣结束)
         const toneDuration = now - this.highStartTime;
         this.handleToneEnd(toneDuration);
@@ -1169,16 +1278,24 @@
         this.handleOngoingSilence(currentSilence);
       }
 
+      // 归一化能量 (0 ~ 1.0) 供 VU 电平表展示
+      const normalizedEnergy = Math.max(0, Math.min(1.0, (toneAmp - this.noiseFloor) / (span + 0.0001)));
+      const normalizedThresh = Math.max(0, Math.min(1.0, (dynamicHigh - this.noiseFloor) / (span + 0.0001)));
+
       this.latestState = {
         isHigh: this.isSignalHigh,
-        energy: energy,
-        threshold: this.threshold,
+        energy: normalizedEnergy,
+        rawEnergy: toneAmp,
+        noiseFloor: this.noiseFloor,
+        signalPeak: this.signalPeak,
+        threshold: normalizedThresh,
         timeData: this.timeData,
         freqData: this.freqData,
         detectedFreq: this.detectedFreq,
         targetFreq: this.targetFreq,
         currentSymbols: this.currentSymbols,
-        decodedDigits: this.decodedDigits
+        decodedDigits: this.decodedDigits,
+        snr: (this.signalPeak / Math.max(0.0001, this.noiseFloor)).toFixed(1)
       };
     }
 
@@ -1202,11 +1319,11 @@
     }
 
     handleToneEnd(durationMs) {
-      if (durationMs < 40) return;  // 过滤过短毛刺与按键爆音
-      if (durationMs > 850) return; // 过滤非电报的超长背景嗡鸣
+      if (durationMs < this.minPulseMs) return;  // 过滤过短毛刺与按键爆音 (<35ms)
+      if (durationMs > this.maxPulseMs) return; // 过滤非电报的超长背景嗡鸣 (>650ms)
 
-      // 标准游戏短音 ~125ms，长音 ~375ms，精确分割阈值为 200ms
-      const symbol = durationMs < 200 ? '·' : '-';
+      // 三角洲真实录音短音 ~85ms，长音 ~280ms，精确分割阈值为 160ms
+      const symbol = durationMs < this.dotDashSplitMs ? '·' : '-';
       this.currentSymbols += symbol;
 
       if (this.onSymbolDetected) {
@@ -1220,19 +1337,19 @@
     }
 
     handleSilenceEnd(silenceDurationMs) {
-      // 字符间停顿 (> 260ms) 提交当前数字 (解决即使个别丢音仅有 4 位时也能结算)
-      if (this.currentSymbols.length > 0 && silenceDurationMs > 260) {
+      // 字符间停顿 (> 220ms) 提交当前数字 (即便丢音导致只有 4 位也能自动容错结算)
+      if (this.currentSymbols.length > 0 && silenceDurationMs > this.charGapThresholdMs) {
         this.commitCurrentDigit();
       }
     }
 
     handleOngoingSilence(silenceDurationMs) {
-      if (this.currentSymbols.length > 0 && silenceDurationMs > 260) {
+      if (this.currentSymbols.length > 0 && silenceDurationMs > this.charGapThresholdMs) {
         this.commitCurrentDigit();
       }
 
-      // 长空白判别律：停顿超 1500ms 认定整组密码播报完毕
-      if (this.decodedDigits.length >= 3 && silenceDurationMs > 1500 && !this.isSequenceReported) {
+      // 长空白判别律：停顿超 1400ms 认定整组密码播报完毕
+      if (this.decodedDigits.length >= 3 && silenceDurationMs > this.cycleGapThresholdMs && !this.isSequenceReported) {
         this.isSequenceReported = true;
         if (this.onSequenceComplete) {
           this.onSequenceComplete(this.decodedDigits);
@@ -1510,6 +1627,7 @@
         btnStartMicAudio: document.getElementById('btn-start-mic-audio'),
         btnStopAudioDecoder: document.getElementById('btn-stop-audio-decoder'),
         statDecoderHz: document.getElementById('stat-decoder-hz'),
+        statDecoderSnr: document.getElementById('stat-decoder-snr'),
         statDecoderSignal: document.getElementById('stat-decoder-signal'),
         decoderCanvas: document.getElementById('decoder-canvas'),
         decoderEnergyFill: document.getElementById('decoder-energy-fill'),
@@ -2781,8 +2899,9 @@
 
     initAudioDecoder() {
       this.decoder = new MorseAudioDecoder({
-        targetFreq: 750,
-        threshold: 0.08,
+        targetFreq: 1570,
+        autoTracking: true,
+        sensitivityMultiplier: 0.35,
         onSignalState: (state) => {
           this.renderDecoderSignal(state);
         },
@@ -2853,29 +2972,43 @@
         this.dom.sliderDecoderFreq.addEventListener('input', (e) => {
           const val = parseInt(e.target.value, 10);
           if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${val} Hz`;
-          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心滤波：${val} Hz`;
-          this.decoder.setTargetFrequency(val);
+          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${val} Hz`;
+          document.querySelectorAll('.freq-presets .btn-chip').forEach(b => {
+            b.classList.toggle('active', b.dataset.freq === String(val));
+          });
+          this.decoder.setTargetFrequency(val, false);
         });
       }
   
       // 预设芯片按钮
       document.querySelectorAll('.freq-presets .btn-chip').forEach(btn => {
         btn.addEventListener('click', () => {
-          const freq = parseInt(btn.dataset.freq, 10);
-          if (this.dom.sliderDecoderFreq) this.dom.sliderDecoderFreq.value = freq;
-          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${freq} Hz`;
-          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心滤波：${freq} Hz`;
+          const freqType = btn.dataset.freq;
           document.querySelectorAll('.freq-presets .btn-chip').forEach(b => b.classList.toggle('active', b === btn));
-          this.decoder.setTargetFrequency(freq);
+          if (freqType === 'auto') {
+            this.decoder.setTargetFrequency('auto');
+            if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = '智能自动锁频 (750~1800Hz)';
+            if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：自动跟踪中...`;
+          } else {
+            const freq = parseInt(freqType, 10);
+            if (this.dom.sliderDecoderFreq) this.dom.sliderDecoderFreq.value = freq;
+            if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = freq === 1570 ? '1570 Hz (三角洲官方)' : `${freq} Hz`;
+            if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${freq} Hz`;
+            this.decoder.setTargetFrequency(freq, false);
+          }
         });
       });
   
-      // 灵敏度滑块
+      // 灵敏度滑块 (自适应信噪比门限 10% ~ 90%)
       if (this.dom.sliderDecoderThreshold) {
         this.dom.sliderDecoderThreshold.addEventListener('input', (e) => {
           const val = parseInt(e.target.value, 10);
-          if (this.dom.valDecoderThreshold) this.dom.valDecoderThreshold.textContent = `${val}%`;
-          this.decoder.setThreshold(val / 100);
+          let label = `${val}%`;
+          if (val === 50) label += ' (推荐标准)';
+          else if (val < 30) label += ' (高灵敏/微弱音)';
+          else if (val > 70) label += ' (抗杂音/高门限)';
+          if (this.dom.valDecoderThreshold) this.dom.valDecoderThreshold.textContent = label;
+          this.decoder.setSensitivity(val / 100);
         });
       }
   
@@ -2911,7 +3044,7 @@
         this.decoderCanvasCtx = this.dom.decoderCanvas.getContext('2d');
       }
     }
-
+  
     updateDecoderStatusUI(status) {
       const isListening = status === 'listening';
       if (this.dom.decoderStatusPill) {
@@ -2936,7 +3069,7 @@
         this.dom.btnStartMicAudio.classList.toggle('active', isListening && this.decoder && this.decoder.sourceType === 'microphone');
       }
     }
-
+  
     renderDecoderSignal(state) {
       // 1. 更新电平能量条
       const pct = Math.min(100, Math.round(state.energy * 100));
@@ -2948,7 +3081,7 @@
       if (this.dom.decoderThresholdMarker) this.dom.decoderThresholdMarker.style.left = `${threshPct}%`;
       if (this.dom.decoderEnergyVal) this.dom.decoderEnergyVal.textContent = `${pct}%`;
   
-      // 2. 更新指示灯与实测频点
+      // 2. 更新指示灯、信噪比与实测频点
       if (this.dom.statDecoderSignal) {
         if (state.isHigh) {
           this.dom.statDecoderSignal.classList.add('high');
@@ -2958,8 +3091,12 @@
           this.dom.statDecoderSignal.textContent = '静音监听中';
         }
       }
-      if (this.dom.statDecoderHz && state.detectedFreq) {
-        this.dom.statDecoderHz.textContent = `滤波：${Math.round(state.targetFreq)} Hz (实测载波：${state.detectedFreq} Hz)`;
+      if (this.dom.statDecoderSnr && state.snr) {
+        this.dom.statDecoderSnr.textContent = `SNR: ${state.snr}x`;
+      }
+      if (this.dom.statDecoderHz) {
+        const modeText = this.decoder && this.decoder.autoTracking ? ` (自动锁频: ${state.detectedFreq} Hz)` : '';
+        this.dom.statDecoderHz.textContent = `中心频点：${Math.round(state.targetFreq)} Hz${modeText}`;
       }
   
       // 3. 绘制示波器波形
@@ -3046,5 +3183,7 @@
   window.addEventListener('DOMContentLoaded', () => {
     const app = new DeltaMorseTrainerApp();
     app.init();
+    window.deltaApp = app;
   });
+  window.MorseAudioDecoder = MorseAudioDecoder;
 })();

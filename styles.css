@@ -2462,6 +2462,16 @@ input:checked + .slider:before {
   box-shadow: 0 0 10px rgba(0, 255, 102, 0.6);
 }
 
+.snr-tag {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  color: var(--delta-cyan);
+  font-family: var(--font-mono);
+}
+
 .canvas-wrapper {
   position: relative;
   width: 100%;

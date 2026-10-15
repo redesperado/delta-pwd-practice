@@ -639,19 +639,20 @@
             <!-- 系统音频截取提示指引 -->
             <div class="decoder-help-box" id="decoder-help-box">
               <div style="font-weight: 600; color: var(--delta-amber); margin-bottom: 4px;">
-                💡 系统音频内录指南 (Chrome / Edge 必读 · 支持切回游戏后台长效破译)：
+                💡 三角洲实时听音破译指南 (已校准 1570Hz 官方蜂鸣 · 动态信噪比自适应)：
               </div>
               <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.6;">
-                点击【截取游戏/系统音频】后，在弹出的窗口中<strong>优先选择【整个屏幕】</strong>，并<strong>务必勾选左下角“同时共享系统音频” (Also share system audio)</strong>！已开启硬件时钟驱动，切回游戏全屏对局持续破译不休眠。(注：Windows 版 Chrome 通常不支持单独窗口内录声音，请务必选“整个屏幕”)。
+                《三角洲行动》游戏密码房蜂鸣基频为 <strong>~1570 Hz</strong>。已接入自适应底噪与纯音共振追踪算法，即使在枪声与杂音环境下也能精准咬合。点击【截取系统音频】并勾选“同时共享系统音频”后，即可切回全屏游戏对局，后台实时监听破译，杜绝漏音与误报。
               </div>
             </div>
 
             <!-- 战术声波与能量监控示波器 -->
             <div class="decoder-monitor-box">
               <div class="monitor-header">
-                <span class="monitor-title">📊 战术声波示波器 (窄带带通滤波 750Hz)</span>
+                <span class="monitor-title">📊 战术声波与智能锁相示波器 (1570Hz 官方蜂鸣)</span>
                 <div class="monitor-stats">
-                  <span id="stat-decoder-hz">中心滤波：750 Hz</span>
+                  <span id="stat-decoder-hz">中心频点：1570 Hz</span>
+                  <span id="stat-decoder-snr" class="snr-tag" title="动态信噪比 (蜂鸣峰值 / 底噪)">SNR: 1.0x</span>
                   <span id="stat-decoder-signal" class="signal-tag">静音中</span>
                 </div>
               </div>
@@ -664,7 +665,7 @@
 
               <!-- 实时电平与阈值指示条 -->
               <div class="energy-bar-container">
-                <div class="energy-label">实时电平:</div>
+                <div class="energy-label">自适应信噪比电平:</div>
                 <div class="energy-bar-track">
                   <div id="decoder-energy-fill" class="energy-bar-fill"></div>
                   <div id="decoder-threshold-marker" class="energy-threshold-marker"></div>
@@ -677,25 +678,26 @@
             <div class="decoder-params-row">
               <div class="param-group">
                 <div class="param-header">
-                  <span>目标中心频率 (Hz)</span>
-                  <span id="val-decoder-freq" style="color: var(--delta-green); font-family: var(--font-mono);">750 Hz</span>
+                  <span>目标蜂鸣频率 (Hz)</span>
+                  <span id="val-decoder-freq" style="color: var(--delta-green); font-family: var(--font-mono);">1570 Hz (三角洲官方)</span>
                 </div>
-                <input type="range" id="slider-decoder-freq" min="500" max="1100" step="10" value="750">
+                <input type="range" id="slider-decoder-freq" min="600" max="2000" step="10" value="1570">
                 <div class="freq-presets">
-                  <button class="btn-chip" data-freq="750">750Hz (标准)</button>
-                  <button class="btn-chip" data-freq="800">800Hz (航天)</button>
-                  <button class="btn-chip" data-freq="700">700Hz (沉稳)</button>
+                  <button class="btn-chip active" data-freq="1570">1570Hz (三角洲官方)</button>
+                  <button class="btn-chip" data-freq="auto">智能自动锁频</button>
+                  <button class="btn-chip" data-freq="1000">1000Hz (标准)</button>
+                  <button class="btn-chip" data-freq="750">750Hz (低音)</button>
                 </div>
               </div>
 
               <div class="param-group">
                 <div class="param-header">
-                  <span>触发灵敏度阈值</span>
-                  <span id="val-decoder-threshold" style="color: var(--delta-amber); font-family: var(--font-mono);">8%</span>
+                  <span>识别触发灵敏度</span>
+                  <span id="val-decoder-threshold" style="color: var(--delta-amber); font-family: var(--font-mono);">50% (推荐标准)</span>
                 </div>
-                <input type="range" id="slider-decoder-threshold" min="2" max="80" step="1" value="8">
+                <input type="range" id="slider-decoder-threshold" min="10" max="90" step="1" value="50">
                 <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">
-                  环境杂音大时请往右调高阈值；声音微弱时请往左调低。
+                  采用动态底噪信噪比触发：游戏音量低时自动补益；若外界杂音过大可往左调低灵敏度。
                 </div>
               </div>
             </div>

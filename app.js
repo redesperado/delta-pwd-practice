@@ -212,6 +212,7 @@ class DeltaMorseTrainerApp {
       btnStartMicAudio: document.getElementById('btn-start-mic-audio'),
       btnStopAudioDecoder: document.getElementById('btn-stop-audio-decoder'),
       statDecoderHz: document.getElementById('stat-decoder-hz'),
+      statDecoderSnr: document.getElementById('stat-decoder-snr'),
       statDecoderSignal: document.getElementById('stat-decoder-signal'),
       decoderCanvas: document.getElementById('decoder-canvas'),
       decoderEnergyFill: document.getElementById('decoder-energy-fill'),
@@ -1506,8 +1507,9 @@ class DeltaMorseTrainerApp {
 
   initAudioDecoder() {
     this.decoder = new MorseAudioDecoder({
-      targetFreq: 750,
-      threshold: 0.08,
+      targetFreq: 1570,
+      autoTracking: true,
+      sensitivityMultiplier: 0.35,
       onSignalState: (state) => {
         this.renderDecoderSignal(state);
       },
@@ -1578,29 +1580,43 @@ class DeltaMorseTrainerApp {
       this.dom.sliderDecoderFreq.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
         if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${val} Hz`;
-        if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心滤波：${val} Hz`;
-        this.decoder.setTargetFrequency(val);
+        if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${val} Hz`;
+        document.querySelectorAll('.freq-presets .btn-chip').forEach(b => {
+          b.classList.toggle('active', b.dataset.freq === String(val));
+        });
+        this.decoder.setTargetFrequency(val, false);
       });
     }
 
     // 预设芯片按钮
     document.querySelectorAll('.freq-presets .btn-chip').forEach(btn => {
       btn.addEventListener('click', () => {
-        const freq = parseInt(btn.dataset.freq, 10);
-        if (this.dom.sliderDecoderFreq) this.dom.sliderDecoderFreq.value = freq;
-        if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${freq} Hz`;
-        if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心滤波：${freq} Hz`;
+        const freqType = btn.dataset.freq;
         document.querySelectorAll('.freq-presets .btn-chip').forEach(b => b.classList.toggle('active', b === btn));
-        this.decoder.setTargetFrequency(freq);
+        if (freqType === 'auto') {
+          this.decoder.setTargetFrequency('auto');
+          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = '智能自动锁频 (750~1800Hz)';
+          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：自动跟踪中...`;
+        } else {
+          const freq = parseInt(freqType, 10);
+          if (this.dom.sliderDecoderFreq) this.dom.sliderDecoderFreq.value = freq;
+          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = freq === 1570 ? '1570 Hz (三角洲官方)' : `${freq} Hz`;
+          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${freq} Hz`;
+          this.decoder.setTargetFrequency(freq, false);
+        }
       });
     });
 
-    // 灵敏度滑块
+    // 灵敏度滑块 (自适应信噪比门限 10% ~ 90%)
     if (this.dom.sliderDecoderThreshold) {
       this.dom.sliderDecoderThreshold.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
-        if (this.dom.valDecoderThreshold) this.dom.valDecoderThreshold.textContent = `${val}%`;
-        this.decoder.setThreshold(val / 100);
+        let label = `${val}%`;
+        if (val === 50) label += ' (推荐标准)';
+        else if (val < 30) label += ' (高灵敏/微弱音)';
+        else if (val > 70) label += ' (抗杂音/高门限)';
+        if (this.dom.valDecoderThreshold) this.dom.valDecoderThreshold.textContent = label;
+        this.decoder.setSensitivity(val / 100);
       });
     }
 
@@ -1673,7 +1689,7 @@ class DeltaMorseTrainerApp {
     if (this.dom.decoderThresholdMarker) this.dom.decoderThresholdMarker.style.left = `${threshPct}%`;
     if (this.dom.decoderEnergyVal) this.dom.decoderEnergyVal.textContent = `${pct}%`;
 
-    // 2. 更新指示灯与实测频点
+    // 2. 更新指示灯、信噪比与实测频点
     if (this.dom.statDecoderSignal) {
       if (state.isHigh) {
         this.dom.statDecoderSignal.classList.add('high');
@@ -1683,8 +1699,12 @@ class DeltaMorseTrainerApp {
         this.dom.statDecoderSignal.textContent = '静音监听中';
       }
     }
-    if (this.dom.statDecoderHz && state.detectedFreq) {
-      this.dom.statDecoderHz.textContent = `滤波：${Math.round(state.targetFreq)} Hz (实测载波：${state.detectedFreq} Hz)`;
+    if (this.dom.statDecoderSnr && state.snr) {
+      this.dom.statDecoderSnr.textContent = `SNR: ${state.snr}x`;
+    }
+    if (this.dom.statDecoderHz) {
+      const modeText = this.decoder && this.decoder.autoTracking ? ` (自动锁频: ${state.detectedFreq} Hz)` : '';
+      this.dom.statDecoderHz.textContent = `中心频点：${Math.round(state.targetFreq)} Hz${modeText}`;
     }
 
     // 3. 绘制示波器波形
@@ -1771,4 +1791,7 @@ class DeltaMorseTrainerApp {
 window.addEventListener('DOMContentLoaded', () => {
   const app = new DeltaMorseTrainerApp();
   app.init();
+  window.deltaApp = app;
 });
+window.MorseAudioDecoder = MorseAudioDecoder;
+
