@@ -255,7 +255,7 @@ export class MorseAudioDecoder {
   }
 
   /**
-   * 宽带全谱扫描 (550Hz ~ 1750Hz)，自动探测纯音共振峰并计算尖锐度 (Peakiness)
+   * 宽带全谱扫描 (100Hz ~ 2500Hz)，自动探测纯音共振峰并计算尖锐度 (Peakiness)
    */
   detectDominantFrequency(pcm, sampleRate = 48000) {
     let maxE = 0;
@@ -263,7 +263,7 @@ export class MorseAudioDecoder {
     let totalE = 0;
     let count = 0;
 
-    for (let f = 550; f <= 1750; f += 25) {
+    for (let f = 100; f <= 2500; f += 25) {
       const e = this.calcToneEnergy(pcm, f, sampleRate);
       totalE += e;
       count++;
@@ -286,7 +286,7 @@ export class MorseAudioDecoder {
     this.autoTracking = isAuto;
     const num = parseInt(freq, 10);
     if (!isNaN(num)) {
-      this.targetFreq = Math.max(500, Math.min(2200, num));
+      this.targetFreq = Math.max(80, Math.min(3500, num));
       this.detectedFreq = this.targetFreq;
       this.isCarrierLocked = true;
     }
@@ -422,16 +422,18 @@ export class MorseAudioDecoder {
             toneAmp = scan.energy; // 瞬间在当前首帧咬合，杜绝丢音
           } else {
             // 平顶多点监测当前目标频点 (±35Hz)
+            const fLow = Math.max(20, this.targetFreq - 35);
             toneAmp = Math.max(
-              this.calcToneEnergy(pcm, this.targetFreq - 35, sr),
+              this.calcToneEnergy(pcm, fLow, sr),
               this.calcToneEnergy(pcm, this.targetFreq, sr),
               this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
             );
           }
         } else {
           // 已锁定状态：三点平顶滤波器跟踪锁定载波 (容忍 ±35Hz 微偏与混响)
+          const fLow = Math.max(20, this.targetFreq - 35);
           toneAmp = Math.max(
-            this.calcToneEnergy(pcm, this.targetFreq - 35, sr),
+            this.calcToneEnergy(pcm, fLow, sr),
             this.calcToneEnergy(pcm, this.targetFreq, sr),
             this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
           );
@@ -441,8 +443,9 @@ export class MorseAudioDecoder {
         }
       } else {
         // 手动模式：三点平顶滤波器聚焦用户设定频点
+        const fLow = Math.max(20, this.targetFreq - 35);
         toneAmp = Math.max(
-          this.calcToneEnergy(pcm, this.targetFreq - 35, sr),
+          this.calcToneEnergy(pcm, fLow, sr),
           this.calcToneEnergy(pcm, this.targetFreq, sr),
           this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
         );
