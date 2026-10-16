@@ -1595,12 +1595,18 @@ class DeltaMorseTrainerApp {
         document.querySelectorAll('.freq-presets .btn-chip').forEach(b => b.classList.toggle('active', b === btn));
         if (freqType === 'auto') {
           this.decoder.setTargetFrequency('auto');
-          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = '智能自动锁频 (750~1800Hz)';
-          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：自动跟踪中...`;
+          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = '智能自动锁频 (550~1800Hz)';
+          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：智能跟踪中...`;
         } else {
           const freq = parseInt(freqType, 10);
           if (this.dom.sliderDecoderFreq) this.dom.sliderDecoderFreq.value = freq;
-          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = freq === 1570 ? '1570 Hz (三角洲官方)' : `${freq} Hz`;
+          if (this.dom.valDecoderFreq) {
+            if (freq === 1570) this.dom.valDecoderFreq.textContent = '1570 Hz (绝密/航天官方)';
+            else if (freq === 1000) this.dom.valDecoderFreq.textContent = '1000 Hz (标准)';
+            else if (freq === 750) this.dom.valDecoderFreq.textContent = '750 Hz (长弓/零号)';
+            else if (freq === 600) this.dom.valDecoderFreq.textContent = '600 Hz (巴克什/低频)';
+            else this.dom.valDecoderFreq.textContent = `${freq} Hz`;
+          }
           if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${freq} Hz`;
           this.decoder.setTargetFrequency(freq, false);
         }
@@ -1703,7 +1709,7 @@ class DeltaMorseTrainerApp {
       this.dom.statDecoderSnr.textContent = `SNR: ${state.snr}x`;
     }
     if (this.dom.statDecoderHz) {
-      const modeText = this.decoder && this.decoder.autoTracking ? ` (自动锁频: ${state.detectedFreq} Hz)` : '';
+      const modeText = this.decoder && this.decoder.autoTracking ? (state.isCarrierLocked ? ` (已锁定: ${state.detectedFreq} Hz)` : ' (全频段扫描中...)') : '';
       this.dom.statDecoderHz.textContent = `中心频点：${Math.round(state.targetFreq)} Hz${modeText}`;
     }
 

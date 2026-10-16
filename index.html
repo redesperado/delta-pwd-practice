@@ -639,19 +639,19 @@
             <!-- 系统音频截取提示指引 -->
             <div class="decoder-help-box" id="decoder-help-box">
               <div style="font-weight: 600; color: var(--delta-amber); margin-bottom: 4px;">
-                💡 三角洲实时听音破译指南 (已校准 1570Hz 官方蜂鸣 · 动态信噪比自适应)：
+                💡 三角洲实时听音破译指南 (全频段纯音自适应 · 智能全频锁相)：
               </div>
               <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.6;">
-                《三角洲行动》游戏密码房蜂鸣基频为 <strong>~1570 Hz</strong>。已接入自适应底噪与纯音共振追踪算法，即使在枪声与杂音环境下也能精准咬合。点击【截取系统音频】并勾选“同时共享系统音频”后，即可切回全屏游戏对局，后台实时监听破译，杜绝漏音与误报。
+                针对《三角洲行动》不同地图与设备（航天基地官方1570Hz蜂鸣、零号大坝750Hz、巴克什600Hz等），系统默认启用<strong>智能自动锁频 (550~1800Hz)</strong>。依托纯音尖锐度分析与自适应动态信噪比门限，无论游戏内录还是手机/电脑麦克风微弱录音，都能瞬间咬合并自动纠错滤除杂音。
               </div>
             </div>
 
             <!-- 战术声波与能量监控示波器 -->
             <div class="decoder-monitor-box">
               <div class="monitor-header">
-                <span class="monitor-title">📊 战术声波与智能锁相示波器 (1570Hz 官方蜂鸣)</span>
+                <span class="monitor-title">📊 战术声波与智能锁相示波器</span>
                 <div class="monitor-stats">
-                  <span id="stat-decoder-hz">中心频点：1570 Hz</span>
+                  <span id="stat-decoder-hz">中心频点：智能跟踪中...</span>
                   <span id="stat-decoder-snr" class="snr-tag" title="动态信噪比 (蜂鸣峰值 / 底噪)">SNR: 1.0x</span>
                   <span id="stat-decoder-signal" class="signal-tag">静音中</span>
                 </div>
@@ -679,14 +679,15 @@
               <div class="param-group">
                 <div class="param-header">
                   <span>目标蜂鸣频率 (Hz)</span>
-                  <span id="val-decoder-freq" style="color: var(--delta-green); font-family: var(--font-mono);">1570 Hz (三角洲官方)</span>
+                  <span id="val-decoder-freq" style="color: var(--delta-green); font-family: var(--font-mono);">智能自动锁频 (550~1800Hz)</span>
                 </div>
-                <input type="range" id="slider-decoder-freq" min="600" max="2000" step="10" value="1570">
+                <input type="range" id="slider-decoder-freq" min="500" max="2000" step="10" value="1570">
                 <div class="freq-presets">
-                  <button class="btn-chip active" data-freq="1570">1570Hz (三角洲官方)</button>
-                  <button class="btn-chip" data-freq="auto">智能自动锁频</button>
+                  <button class="btn-chip active" data-freq="auto">智能自动锁频 (推荐)</button>
+                  <button class="btn-chip" data-freq="1570">1570Hz (绝密/航天官方)</button>
                   <button class="btn-chip" data-freq="1000">1000Hz (标准)</button>
-                  <button class="btn-chip" data-freq="750">750Hz (低音)</button>
+                  <button class="btn-chip" data-freq="750">750Hz (长弓/零号)</button>
+                  <button class="btn-chip" data-freq="600">600Hz (巴克什/低频)</button>
                 </div>
               </div>
 

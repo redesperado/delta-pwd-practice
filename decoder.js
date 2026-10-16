@@ -13,19 +13,21 @@ import { CODE_TO_DIGIT, MORSE_DIGITS } from './morse.js';
 
 export class MorseAudioDecoder {
   constructor(options = {}) {
-    // 目标中心频率 (Hz)：三角洲行动真实摩斯蜂鸣官方音高为 1570Hz (1550~1575Hz)
+    // 目标中心频率 (Hz)：三角洲行动真实摩斯蜂鸣官方音高为 1570Hz (1550~1575Hz)，部分地图/房间为 600Hz 或 750Hz~800Hz
     this.targetFreq = options.targetFreq || 1570;
-    this.filterQ = options.filterQ || 1.4;       // 宽通滤波 Q 值
-    this.autoTracking = options.autoTracking !== false; // 默认开启智能锁频
-    this.detectedFreq = 1570;                   // 实时自动侦测到的峰值载波频率
+    this.filterQ = options.filterQ || 1.4;
+    this.autoTracking = options.autoTracking !== false; // 默认开启智能全频锁相
+    this.detectedFreq = this.targetFreq;
+    this.isCarrierLocked = false;               // 是否已锁定有效电报载波
+    this.lastCarrierTime = 0;                   // 上次听到有效载波的时间戳
 
     // 自适应信噪比与动态门限参数 (CFAR / AGC)
-    this.noiseFloor = 0.002;                    // 初始背景底噪
-    this.signalPeak = 0.025;                    // 初始蜂鸣峰值强度
-    this.sensitivityMultiplier = options.sensitivityMultiplier || 0.35; // 触发门限系数 (0.18 ~ 0.55，默认 0.35)
+    this.noiseFloor = 0.001;                    // 初始背景底噪 (超灵敏基准)
+    this.signalPeak = 0.008;                    // 初始蜂鸣峰值强度 (适应弱音与麦克风)
+    this.sensitivityMultiplier = options.sensitivityMultiplier || 0.35; // 触发门限系数 (0.20 ~ 0.52，默认 0.35)
 
     // 回调事件
-    this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeData, freqData, detectedFreq, targetFreq, noiseFloor, signalPeak, snr })
+    this.onSignalState = options.onSignalState || null;     // (state: { isHigh, energy, threshold, timeData, freqData, detectedFreq, targetFreq, noiseFloor, signalPeak, snr, isCarrierLocked })
     this.onSymbolDetected = options.onSymbolDetected || null; // (symbol: '·' | '-', durationMs)
     this.onDigitDecoded = options.onDigitDecoded || null;   // (digit: string, currentFullCode: string, codeSymbols: string, rawSymbols: string)
     this.onSequenceComplete = options.onSequenceComplete || null; // (fullCode: string)
@@ -36,7 +38,6 @@ export class MorseAudioDecoder {
     this.audioCtx = null;
     this.mediaStream = null;
     this.sourceNode = null;
-    this.bandpassFilter = null;
     this.analyserNode = null;
     this.scriptProcessor = null;
     this.silentGain = null;
@@ -47,7 +48,6 @@ export class MorseAudioDecoder {
     this.animationId = null;
     this.latestState = null;
     this.lastProcessTime = 0;
-    this.lastTrackTime = 0;
 
     // 摩斯状态机变量 (毫秒时钟)
     this.isSignalHigh = false;
@@ -60,12 +60,12 @@ export class MorseAudioDecoder {
     // 划音 (Dash): 180ms ~ 420ms (典型 ~280ms)
     // 点划判定分界: 160ms (<160ms 为点，>=160ms 为划)
     // 字符微停顿 (Intra-char): 60ms ~ 120ms (典型 ~85ms)
-    // 数字间停顿 (Inter-digit): 300ms ~ 600ms (典型 ~450ms)
-    // 轮次间长停顿 (Inter-cycle): 2800ms ~ 6000ms (典型 ~3.5s)
+    // 数字间停顿 (Inter-digit): 200ms ~ 600ms (典型 ~350ms)
+    // 轮次间长停顿 (Inter-cycle): 2000ms ~ 5000ms (典型 ~3s)
     this.dotDashSplitMs = 160;
-    this.minPulseMs = 35;        // 剔除 <35ms 偶发杂音毛刺
+    this.minPulseMs = 35;        // 剔除 <35ms 偶发杂音毛刺与爆音
     this.maxPulseMs = 650;       // 剔除 >650ms 持续性长杂音
-    this.charGapThresholdMs = 220; // 停顿超 220ms 结算当前数字
+    this.charGapThresholdMs = 200; // 停顿超 200ms 结算当前数字
     this.cycleGapThresholdMs = 1400; // 停顿超 1400ms 判定整组密码播报结束
 
     // 收集中的点划与数字
@@ -175,7 +175,7 @@ export class MorseAudioDecoder {
 
   /**
    * 初始化 Web Audio API 信号处理管线
-   * 采用 ScriptProcessorNode 驱动后台免休眠实时解码
+   * 采用 ScriptProcessorNode 直连无衰减原生音频流，驱动后台免休眠实时解码
    */
   async initAudioPipeline() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -192,12 +192,6 @@ export class MorseAudioDecoder {
       }
     };
 
-    // 建立带通滤波器 (宽通 Q=1.4，平坦过渡，保证蜂鸣信号无衰减通过)
-    this.bandpassFilter = this.audioCtx.createBiquadFilter();
-    this.bandpassFilter.type = 'bandpass';
-    this.bandpassFilter.frequency.setValueAtTime(this.targetFreq, this.audioCtx.currentTime);
-    this.bandpassFilter.Q.setValueAtTime(this.filterQ, this.audioCtx.currentTime);
-
     // 建立频谱与时域分析器
     this.analyserNode = this.audioCtx.createAnalyser();
     this.analyserNode.fftSize = 512;
@@ -208,15 +202,13 @@ export class MorseAudioDecoder {
     this.silentGain = this.audioCtx.createGain();
     this.silentGain.gain.setValueAtTime(0, this.audioCtx.currentTime); // 0 增益确保不发出回声
 
-    // 连接外部媒体源 (如果有)
+    // 连接外部媒体源 (直连 ScriptProcessor 与 AnalyserNode，彻底避免硬件二阶滤波产生的带外大幅衰减)
     if (this.mediaStream) {
       this.sourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
-      this.sourceNode.connect(this.bandpassFilter);
+      this.sourceNode.connect(this.scriptProcessor);
+      this.sourceNode.connect(this.analyserNode);
     }
 
-    // 滤波器 ➔ 分析器 ➔ 处理节点 ➔ 静音输出 ➔ 扬声器(维持硬件时钟)
-    this.bandpassFilter.connect(this.analyserNode);
-    this.bandpassFilter.connect(this.scriptProcessor);
     this.scriptProcessor.connect(this.silentGain);
     this.silentGain.connect(this.audioCtx.destination);
 
@@ -232,7 +224,8 @@ export class MorseAudioDecoder {
     this.decodedDigits = '';
     this.isSequenceReported = false;
     this.lastProcessTime = performance.now();
-    this.lastTrackTime = performance.now();
+    this.isCarrierLocked = false;
+    this.lastCarrierTime = performance.now();
 
     // 硬件时钟持续驱动分析
     this.scriptProcessor.onaudioprocess = (e) => {
@@ -246,7 +239,7 @@ export class MorseAudioDecoder {
   }
 
   /**
-   * 计算指定频率的 Goertzel 单频共振能量
+   * 计算指定频率的 Goertzel 单频共振能量 (连续角频率，消除整型谐波量化损耗)
    */
   calcToneEnergy(pcm, freq, sampleRate = 48000) {
     const len = pcm.length;
@@ -262,7 +255,7 @@ export class MorseAudioDecoder {
   }
 
   /**
-   * 扫描 750Hz ~ 1800Hz 频段，自动探测并锁定纯音峰值
+   * 宽带全谱扫描 (550Hz ~ 1750Hz)，自动探测纯音共振峰并计算尖锐度 (Peakiness)
    */
   detectDominantFrequency(pcm, sampleRate = 48000) {
     let maxE = 0;
@@ -270,7 +263,7 @@ export class MorseAudioDecoder {
     let totalE = 0;
     let count = 0;
 
-    for (let f = 750; f <= 1800; f += 25) {
+    for (let f = 550; f <= 1750; f += 25) {
       const e = this.calcToneEnergy(pcm, f, sampleRate);
       totalE += e;
       count++;
@@ -287,6 +280,7 @@ export class MorseAudioDecoder {
   setTargetFrequency(freq, isAuto = false) {
     if (freq === 'auto') {
       this.autoTracking = true;
+      this.isCarrierLocked = false;
       return;
     }
     this.autoTracking = isAuto;
@@ -294,9 +288,7 @@ export class MorseAudioDecoder {
     if (!isNaN(num)) {
       this.targetFreq = Math.max(500, Math.min(2200, num));
       this.detectedFreq = this.targetFreq;
-      if (this.bandpassFilter && this.audioCtx) {
-        this.bandpassFilter.frequency.setTargetAtTime(this.targetFreq, this.audioCtx.currentTime, 0.05);
-      }
+      this.isCarrierLocked = true;
     }
   }
 
@@ -305,10 +297,8 @@ export class MorseAudioDecoder {
    * 灵敏度越高，触发所需信噪比门限越低
    */
   setSensitivity(val) {
-    // 0.10 对应高门限 0.52 (迟钝/抗杂音)
-    // 0.90 对应低门限 0.20 (灵敏/微弱音)
     const normalized = Math.max(0.1, Math.min(0.9, val));
-    this.sensitivityMultiplier = 0.55 - (normalized * 0.35); // 0.20 ~ 0.515
+    this.sensitivityMultiplier = 0.55 - (normalized * 0.35); // 0.235 ~ 0.515
   }
 
   // 兼容老接口
@@ -336,10 +326,6 @@ export class MorseAudioDecoder {
     if (this.sourceNode) {
       try { this.sourceNode.disconnect(); } catch (e) {}
       this.sourceNode = null;
-    }
-    if (this.bandpassFilter) {
-      try { this.bandpassFilter.disconnect(); } catch (e) {}
-      this.bandpassFilter = null;
     }
     if (this.analyserNode) {
       try { this.analyserNode.disconnect(); } catch (e) {}
@@ -414,55 +400,78 @@ export class MorseAudioDecoder {
       rms = Math.sqrt(sumSquares / len);
     }
 
-    // 1. 计算目标中心频率的 Goertzel 能量
+    // 1. 纯音载波智能探测与平顶能量计算
     let toneAmp = 0;
+
     if (pcm && pcm.length > 0) {
-      toneAmp = this.calcToneEnergy(pcm, this.targetFreq, sr);
+      if (this.autoTracking) {
+        // 若长时间无信号 (>2500ms)，释放载波锁定重新进行全频段宽带扫描
+        if (this.isCarrierLocked && (now - this.lastCarrierTime > 2500) && (now - this.highStartTime > 2500)) {
+          this.isCarrierLocked = false;
+        }
+
+        if (!this.isCarrierLocked) {
+          // 未锁定状态：全频宽带扫描纯音共振载波 (550Hz ~ 1750Hz)
+          const scan = this.detectDominantFrequency(pcm, sr);
+          // peakiness >= 2.6 且能量高于底噪 1.6 倍，确定为电报蜂鸣纯音
+          if (scan.peakiness >= 2.6 && scan.energy > this.noiseFloor * 1.6 && scan.energy > 0.002) {
+            this.targetFreq = scan.freq;
+            this.detectedFreq = scan.freq;
+            this.isCarrierLocked = true;
+            this.lastCarrierTime = now;
+            toneAmp = scan.energy; // 瞬间在当前首帧咬合，杜绝丢音
+          } else {
+            // 平顶多点监测当前目标频点 (±35Hz)
+            toneAmp = Math.max(
+              this.calcToneEnergy(pcm, this.targetFreq - 35, sr),
+              this.calcToneEnergy(pcm, this.targetFreq, sr),
+              this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+            );
+          }
+        } else {
+          // 已锁定状态：三点平顶滤波器跟踪锁定载波 (容忍 ±35Hz 微偏与混响)
+          toneAmp = Math.max(
+            this.calcToneEnergy(pcm, this.targetFreq - 35, sr),
+            this.calcToneEnergy(pcm, this.targetFreq, sr),
+            this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+          );
+          if (toneAmp > this.noiseFloor * 1.8) {
+            this.lastCarrierTime = now;
+          }
+        }
+      } else {
+        // 手动模式：三点平顶滤波器聚焦用户设定频点
+        toneAmp = Math.max(
+          this.calcToneEnergy(pcm, this.targetFreq - 35, sr),
+          this.calcToneEnergy(pcm, this.targetFreq, sr),
+          this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+        );
+      }
     } else {
-      // 降级使用 FFT 提取目标频点能量
+      // 降级使用 FFT 分析器
       const nyquist = sr / 2;
       const bin = Math.round((this.targetFreq / nyquist) * this.freqData.length);
       toneAmp = (this.freqData[bin] || 0) / 255.0;
     }
 
-    // 2. 自动载波锁频 (Auto Frequency Tracking)
-    // 每 40ms 在有声区间扫描纯音峰值，排除环境语音并自动微调中心频点
-    if (pcm && this.autoTracking && (now - this.lastTrackTime > 40)) {
-      this.lastTrackTime = now;
-      if (rms > this.noiseFloor * 1.5 && rms > 0.002) {
-        const scan = this.detectDominantFrequency(pcm, sr);
-        // peakiness > 2.2 说明是高度纯净的电报纯音，非宽频人声/爆炸低音
-        if (scan.peakiness > 2.2 && scan.energy > this.noiseFloor * 1.8) {
-          this.targetFreq = Math.round(this.targetFreq * 0.85 + scan.freq * 0.15);
-          this.detectedFreq = scan.freq;
-          toneAmp = Math.max(toneAmp, scan.energy);
-          if (this.bandpassFilter && this.audioCtx) {
-            this.bandpassFilter.frequency.setTargetAtTime(this.targetFreq, this.audioCtx.currentTime, 0.05);
-          }
-        }
-      }
-    } else if (!this.autoTracking) {
-      this.detectedFreq = this.targetFreq;
-    }
-
-    // 3. 动态底噪与峰值包络自适应跟踪 (Leaky Integrator / AGC)
+    // 2. 动态底噪与蜂鸣峰值自适应跟踪 (Leaky Integrator / AGC)
     if (toneAmp < this.noiseFloor * 1.5) {
       // 静音平缓期：底噪缓慢向当前平底收敛
-      this.noiseFloor = this.noiseFloor * 0.98 + toneAmp * 0.02;
+      this.noiseFloor = this.noiseFloor * 0.96 + toneAmp * 0.04;
     } else if (toneAmp > this.signalPeak) {
       // 突发蜂鸣：快速跟随峰值
       this.signalPeak = toneAmp;
     } else {
-      // 缓慢衰减峰值 (防止单次按键过响导致后续无法触发)
-      this.signalPeak = this.signalPeak * 0.999 + toneAmp * 0.001;
+      // 适度衰减峰值 (防止单次按键过响导致后续无法触发)
+      this.signalPeak = this.signalPeak * 0.985 + toneAmp * 0.015;
     }
-    this.noiseFloor = Math.max(0.0005, this.noiseFloor);
-    this.signalPeak = Math.max(this.noiseFloor * 2.5, this.signalPeak);
+    this.noiseFloor = Math.max(0.0003, Math.min(0.05, this.noiseFloor));
+    this.signalPeak = Math.max(this.noiseFloor * 2.0, this.signalPeak);
 
-    // 4. 自适应滞后阈值 (Schmitt Trigger)
+    // 3. 自适应滞后阈值 (Schmitt Trigger)
     const span = this.signalPeak - this.noiseFloor;
     const dynamicHigh = this.noiseFloor + span * this.sensitivityMultiplier;
-    const dynamicLow = this.noiseFloor + span * (this.sensitivityMultiplier * 0.52);
+    const dynamicLow = this.noiseFloor + span * (this.sensitivityMultiplier * 0.48);
 
     if (!this.isSignalHigh && toneAmp >= dynamicHigh) {
       // 信号由低变高 (蜂鸣开始)
@@ -507,6 +516,7 @@ export class MorseAudioDecoder {
       freqData: this.freqData,
       detectedFreq: this.detectedFreq,
       targetFreq: this.targetFreq,
+      isCarrierLocked: this.isCarrierLocked,
       currentSymbols: this.currentSymbols,
       decodedDigits: this.decodedDigits,
       snr: (this.signalPeak / Math.max(0.0001, this.noiseFloor)).toFixed(1)
