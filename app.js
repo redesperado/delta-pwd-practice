@@ -1521,7 +1521,7 @@ class DeltaMorseTrainerApp {
   initAudioDecoder() {
     this.decoder = new MorseAudioDecoder({
       targetFreq: 1570,
-      autoTracking: true,
+      autoTracking: false,
       sensitivityMultiplier: 0.35,
       onSignalState: (state) => {
         this.renderDecoderSignal(state);
@@ -1600,8 +1600,8 @@ class DeltaMorseTrainerApp {
     if (this.dom.sliderDecoderFreq) {
       this.dom.sliderDecoderFreq.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
-        if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${val} Hz`;
-        if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${val} Hz`;
+        if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = `${val} Hz (自定义频点)`;
+        if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${val} Hz (定向滤波)`;
         document.querySelectorAll('.freq-presets .btn-chip').forEach(b => {
           b.classList.toggle('active', b.dataset.freq === String(val));
         });
@@ -1616,20 +1616,20 @@ class DeltaMorseTrainerApp {
         document.querySelectorAll('.freq-presets .btn-chip').forEach(b => b.classList.toggle('active', b === btn));
         if (freqType === 'auto') {
           this.decoder.setTargetFrequency('auto');
-          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = '智能自动锁频 (100~2500Hz)';
+          if (this.dom.valDecoderFreq) this.dom.valDecoderFreq.textContent = '智能自动寻频 (100~2500Hz)';
           if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：智能跟踪中...`;
         } else {
           const freq = parseInt(freqType, 10);
           if (this.dom.sliderDecoderFreq) this.dom.sliderDecoderFreq.value = freq;
           if (this.dom.valDecoderFreq) {
-            if (freq === 1570) this.dom.valDecoderFreq.textContent = '1570 Hz (绝密/航天官方)';
-            else if (freq === 1000) this.dom.valDecoderFreq.textContent = '1000 Hz (标准)';
-            else if (freq === 750) this.dom.valDecoderFreq.textContent = '750 Hz (长弓/零号)';
+            if (freq === 1570) this.dom.valDecoderFreq.textContent = '1570 Hz (绝密/航天官方推荐)';
+            else if (freq === 1000) this.dom.valDecoderFreq.textContent = '1000 Hz (标准中频)';
+            else if (freq === 750) this.dom.valDecoderFreq.textContent = '750 Hz (零号/长弓常用)';
             else if (freq === 600) this.dom.valDecoderFreq.textContent = '600 Hz (巴克什/低频)';
             else if (freq === 300) this.dom.valDecoderFreq.textContent = '300 Hz (超低频)';
             else this.dom.valDecoderFreq.textContent = `${freq} Hz`;
           }
-          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${freq} Hz`;
+          if (this.dom.statDecoderHz) this.dom.statDecoderHz.textContent = `中心频点：${freq} Hz (定向滤波)`;
           this.decoder.setTargetFrequency(freq, false);
         }
       });
@@ -1731,7 +1731,9 @@ class DeltaMorseTrainerApp {
       this.dom.statDecoderSnr.textContent = `SNR: ${state.snr}x`;
     }
     if (this.dom.statDecoderHz) {
-      const modeText = this.decoder && this.decoder.autoTracking ? (state.isCarrierLocked ? ` (已锁定: ${state.detectedFreq} Hz)` : ' (全频段扫描中...)') : '';
+      const modeText = this.decoder && this.decoder.autoTracking 
+        ? (state.isCarrierLocked ? ` (已锁定: ${state.detectedFreq} Hz)` : ' (全频段扫描中...)') 
+        : ' (定向滤波)';
       this.dom.statDecoderHz.textContent = `中心频点：${Math.round(state.targetFreq)} Hz${modeText}`;
     }
 
