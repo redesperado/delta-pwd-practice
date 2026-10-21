@@ -231,6 +231,12 @@ export class MorseAudioDecoder {
     this.scriptProcessor.onaudioprocess = (e) => {
       if (!this.isRunning) return;
       const channelData = e.inputBuffer ? e.inputBuffer.getChannelData(0) : null;
+      // 必须将 outputBuffer 彻底清零，杜绝任何输入音频泄漏到输出端形成自激声学反馈或环路串扰
+      if (e.outputBuffer) {
+        for (let c = 0; c < e.outputBuffer.numberOfChannels; c++) {
+          e.outputBuffer.getChannelData(c).fill(0);
+        }
+      }
       this.analyzeFrame(performance.now(), channelData);
     };
 
@@ -255,26 +261,42 @@ export class MorseAudioDecoder {
   }
 
   /**
-   * 宽带全谱扫描 (100Hz ~ 2500Hz)，自动探测纯音共振峰并计算尖锐度 (Peakiness)
+   * 宽带纯音扫描 (500Hz ~ 2200Hz 真实三角洲电报频带)，依托 CA-CFAR 守卫频带差分杜绝低频轰鸣与白噪误锁
    */
   detectDominantFrequency(pcm, sampleRate = 48000) {
-    let maxE = 0;
+    let maxContrast = 0;
     let bestF = this.targetFreq;
+    let maxE = 0;
     let totalE = 0;
     let count = 0;
 
-    for (let f = 100; f <= 2500; f += 25) {
+    // 三角洲行动真实密码蜂鸣频率集中在 500Hz ~ 2200Hz (航天/绝密 1570Hz, 标准 1000Hz, 零号/长弓 750Hz, 巴克什 600Hz)
+    // 避开 100~400Hz 常见枪炮重低音、脚步轰鸣、电脑风扇与 50/60Hz 工频交流声
+    for (let f = 500; f <= 2200; f += 25) {
       const e = this.calcToneEnergy(pcm, f, sampleRate);
       totalE += e;
       count++;
-      if (e > maxE) {
+
+      // 守卫频带能量估算 (检测该频点是否为孤立纯音尖峰)
+      const guardOffset = Math.max(80, Math.min(180, f * 0.12));
+      const guardE = (this.calcToneEnergy(pcm, Math.max(50, f - guardOffset), sampleRate) + 
+                      this.calcToneEnergy(pcm, f + guardOffset, sampleRate)) / 2;
+      const contrast = e / (guardE + 0.0001);
+
+      if (e > 0.0035 && contrast >= 2.6) {
+        const score = contrast * e;
+        if (score > maxContrast) {
+          maxContrast = score;
+          bestF = f;
+          maxE = e;
+        }
+      } else if (e > maxE) {
         maxE = e;
-        bestF = f;
       }
     }
     const avgE = totalE / count;
-    const peakiness = maxE / (avgE + 0.00001); // 纯音尖锐度比值
-    return { freq: bestF, energy: maxE, peakiness };
+    const peakiness = maxE / (avgE + 0.00001);
+    return { freq: bestF, energy: maxE, peakiness, hasPureTone: maxContrast > 0 && peakiness >= 3.2 };
   }
 
   setTargetFrequency(freq, isAuto = false) {
@@ -402,81 +424,102 @@ export class MorseAudioDecoder {
 
     // 1. 纯音载波智能探测与平顶能量计算
     let toneAmp = 0;
+    let spectralContrast = 1.0;
 
     if (pcm && pcm.length > 0) {
       if (this.autoTracking) {
-        // 若长时间无信号 (>2500ms)，释放载波锁定重新进行全频段宽带扫描
-        if (this.isCarrierLocked && (now - this.lastCarrierTime > 2500) && (now - this.highStartTime > 2500)) {
+        // 若长时间无信号 (>2200ms)，释放载波锁定重新进行全频段宽带扫描
+        if (this.isCarrierLocked && (now - this.lastCarrierTime > 2200) && (now - this.highStartTime > 2200)) {
           this.isCarrierLocked = false;
         }
 
         if (!this.isCarrierLocked) {
-          // 未锁定状态：全频宽带扫描纯音共振载波 (550Hz ~ 1750Hz)
+          // 未锁定状态：全频宽带扫描纯音共振载波 (500Hz ~ 2200Hz)
           const scan = this.detectDominantFrequency(pcm, sr);
-          // peakiness >= 2.6 且能量高于底噪 1.6 倍，确定为电报蜂鸣纯音
-          if (scan.peakiness >= 2.6 && scan.energy > this.noiseFloor * 1.6 && scan.energy > 0.002) {
+          if (scan.hasPureTone && scan.energy > this.noiseFloor * 1.8 && scan.energy > 0.0035) {
             this.targetFreq = scan.freq;
             this.detectedFreq = scan.freq;
             this.isCarrierLocked = true;
             this.lastCarrierTime = now;
-            toneAmp = scan.energy; // 瞬间在当前首帧咬合，杜绝丢音
+            toneAmp = scan.energy; // 瞬间首帧咬合
           } else {
-            // 平顶多点监测当前目标频点 (±35Hz)
-            const fLow = Math.max(20, this.targetFreq - 35);
+            // 平顶多点监测当前目标频点 (±30Hz)
+            const fLow = Math.max(30, this.targetFreq - 30);
             toneAmp = Math.max(
               this.calcToneEnergy(pcm, fLow, sr),
               this.calcToneEnergy(pcm, this.targetFreq, sr),
-              this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+              this.calcToneEnergy(pcm, this.targetFreq + 30, sr)
             );
           }
         } else {
-          // 已锁定状态：三点平顶滤波器跟踪锁定载波 (容忍 ±35Hz 微偏与混响)
-          const fLow = Math.max(20, this.targetFreq - 35);
+          // 已锁定状态：三点平顶滤波器跟踪锁定载波 (容忍 ±30Hz 微偏与混响)
+          const fLow = Math.max(30, this.targetFreq - 30);
           toneAmp = Math.max(
             this.calcToneEnergy(pcm, fLow, sr),
             this.calcToneEnergy(pcm, this.targetFreq, sr),
-            this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+            this.calcToneEnergy(pcm, this.targetFreq + 30, sr)
           );
-          if (toneAmp > this.noiseFloor * 1.8) {
-            this.lastCarrierTime = now;
-          }
         }
       } else {
         // 手动模式：三点平顶滤波器聚焦用户设定频点
-        const fLow = Math.max(20, this.targetFreq - 35);
+        const fLow = Math.max(30, this.targetFreq - 30);
         toneAmp = Math.max(
           this.calcToneEnergy(pcm, fLow, sr),
           this.calcToneEnergy(pcm, this.targetFreq, sr),
-          this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+          this.calcToneEnergy(pcm, this.targetFreq + 30, sr)
         );
+      }
+
+      // 计算当前中心频点邻近守卫频带的背景底噪强度 (CA-CFAR)
+      const guardOffset = Math.max(80, Math.min(200, this.targetFreq * 0.12));
+      const guardE = (this.calcToneEnergy(pcm, Math.max(40, this.targetFreq - guardOffset), sr) +
+                      this.calcToneEnergy(pcm, this.targetFreq + guardOffset, sr)) / 2;
+      spectralContrast = toneAmp / (guardE + 0.0001);
+
+      if (this.isCarrierLocked && toneAmp > this.noiseFloor * 1.6 && spectralContrast >= 1.5) {
+        this.lastCarrierTime = now;
       }
     } else {
       // 降级使用 FFT 分析器
       const nyquist = sr / 2;
       const bin = Math.round((this.targetFreq / nyquist) * this.freqData.length);
       toneAmp = (this.freqData[bin] || 0) / 255.0;
+      spectralContrast = 2.0;
     }
 
-    // 2. 动态底噪与蜂鸣峰值自适应跟踪 (Leaky Integrator / AGC)
-    if (toneAmp < this.noiseFloor * 1.5) {
-      // 静音平缓期：底噪缓慢向当前平底收敛
-      this.noiseFloor = this.noiseFloor * 0.96 + toneAmp * 0.04;
+    // 2. 动态底噪与蜂鸣峰值自适应跟踪 (Leaky Integrator / CA-CFAR)
+    // 判定当前帧是否属于背景声音 (低对比度、宽带噪音或能量偏低)
+    const isBackgroundSound = spectralContrast < 1.65 || toneAmp < this.noiseFloor * 1.4;
+
+    if (isBackgroundSound) {
+      if (toneAmp > this.noiseFloor) {
+        // 背景环境声音偏大 (游戏背景音、风噪、麦克风交流声)：平滑向上跟随，防止将背景音误认为信号
+        this.noiseFloor = this.noiseFloor * 0.96 + toneAmp * 0.04;
+      } else {
+        // 背景声音减弱：平滑向下收敛
+        this.noiseFloor = this.noiseFloor * 0.90 + toneAmp * 0.10;
+      }
     } else if (toneAmp > this.signalPeak) {
-      // 突发蜂鸣：快速跟随峰值
+      // 真实纯音突发蜂鸣：快速跟随峰值
       this.signalPeak = toneAmp;
     } else {
       // 适度衰减峰值 (防止单次按键过响导致后续无法触发)
       this.signalPeak = this.signalPeak * 0.985 + toneAmp * 0.015;
     }
-    this.noiseFloor = Math.max(0.0003, Math.min(0.05, this.noiseFloor));
-    this.signalPeak = Math.max(this.noiseFloor * 2.0, this.signalPeak);
 
-    // 3. 自适应滞后阈值 (Schmitt Trigger)
+    this.noiseFloor = Math.max(0.0003, Math.min(0.08, this.noiseFloor));
+    this.signalPeak = Math.max(this.noiseFloor * 1.8, this.signalPeak);
+
+    // 3. 自适应滞后阈值 (Schmitt Trigger + 纯音凸起度门限)
     const span = this.signalPeak - this.noiseFloor;
     const dynamicHigh = this.noiseFloor + span * this.sensitivityMultiplier;
-    const dynamicLow = this.noiseFloor + span * (this.sensitivityMultiplier * 0.48);
+    const dynamicLow = this.noiseFloor + span * (this.sensitivityMultiplier * 0.45);
+    const minContrast = 1.35 + (1.0 - this.sensitivityMultiplier) * 0.7; // ~1.5 to ~2.0
 
-    if (!this.isSignalHigh && toneAmp >= dynamicHigh) {
+    const isToneHigh = (toneAmp >= dynamicHigh) && (spectralContrast >= minContrast);
+    const isToneLow = (toneAmp < dynamicLow) || (spectralContrast < 1.25);
+
+    if (!this.isSignalHigh && isToneHigh) {
       // 信号由低变高 (蜂鸣开始)
       const silenceDuration = now - this.lowStartTime;
       this.handleSilenceEnd(silenceDuration);
@@ -491,7 +534,7 @@ export class MorseAudioDecoder {
       this.isSignalHigh = true;
       this.highStartTime = now;
       this.lastStateChangeTime = now;
-    } else if (this.isSignalHigh && toneAmp < dynamicLow) {
+    } else if (this.isSignalHigh && isToneLow) {
       // 信号由高变低 (蜂鸣结束)
       const toneDuration = now - this.highStartTime;
       this.handleToneEnd(toneDuration);

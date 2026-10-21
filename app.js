@@ -476,6 +476,19 @@ class DeltaMorseTrainerApp {
     audioEngine.stop();
     this.currentMode = mode;
 
+    if (mode === 'audioDecoder') {
+      // 实时听音模式：网页自身必须保持 100% 绝对无线电静默！杜绝自身发声被麦克风或系统内录拾取产生自激回声
+      audioEngine.setMasterMute(true);
+      audioEngine.setAmbientNoise(false);
+      if (this.dom.switchAmbient) this.dom.switchAmbient.checked = false;
+      if (this.dom.ambientControlRow) this.dom.ambientControlRow.style.display = 'none';
+    } else {
+      audioEngine.setMasterMute(false);
+      if (this.decoder && this.decoder.isRunning) {
+        this.decoder.stop();
+      }
+    }
+
     if (this.dom.tabHome) this.dom.tabHome.classList.toggle('active', mode === 'home');
     if (this.dom.tabDailyPasswords) this.dom.tabDailyPasswords.classList.toggle('active', mode === 'dailyPasswords');
     if (this.dom.tabAudioDecoder) this.dom.tabAudioDecoder.classList.toggle('active', mode === 'audioDecoder');
@@ -1549,8 +1562,12 @@ class DeltaMorseTrainerApp {
     if (this.dom.btnStartSystemAudio) {
       this.dom.btnStartSystemAudio.addEventListener('click', async () => {
         try {
+          audioEngine.setMasterMute(true);
+          audioEngine.setAmbientNoise(false);
+          if (this.dom.switchAmbient) this.dom.switchAmbient.checked = false;
+          if (this.dom.ambientControlRow) this.dom.ambientControlRow.style.display = 'none';
           await this.decoder.startSystemAudio();
-          this.showToast('🖥️ 已接入系统音频内录，请切入游戏靠近密码门！');
+          this.showToast('🖥️ 已接入系统音频内录，网页已自动禁音，请靠近密码门！');
         } catch (err) {
           this.showToast(`❌ 接入失败: ${err.message}`, 4000);
         }
@@ -1560,8 +1577,12 @@ class DeltaMorseTrainerApp {
     if (this.dom.btnStartMicAudio) {
       this.dom.btnStartMicAudio.addEventListener('click', async () => {
         try {
+          audioEngine.setMasterMute(true);
+          audioEngine.setAmbientNoise(false);
+          if (this.dom.switchAmbient) this.dom.switchAmbient.checked = false;
+          if (this.dom.ambientControlRow) this.dom.ambientControlRow.style.display = 'none';
           await this.decoder.startMicrophone();
-          this.showToast('🎙️ 已开启麦克风监听，请将设备对准扬声器！');
+          this.showToast('🎙️ 已开启麦克风监听，网页已自动禁音，请将设备对准扬声器！');
         } catch (err) {
           this.showToast(`❌ 麦克风开启失败: ${err.message}`, 4000);
         }

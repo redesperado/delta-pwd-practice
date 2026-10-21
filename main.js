@@ -377,6 +377,9 @@
       this.ambientVolume = 0.15;
       this.isAmbientEnabled = false;
 
+      // 网页全局静音控制 (听音破译时强制无线电静默，杜绝回声与自激)
+      this.isMuted = false;
+
       // 排他会话令牌与小抄独立预览令牌
       this.currentSessionId = 0;
       this.previewSessionId = 0;
@@ -398,10 +401,13 @@
         this.ctx = new AudioCtx();
 
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+        const initialVol = this.isMuted ? 0 : this.volume;
+        this.masterGain.gain.setValueAtTime(initialVol, this.ctx.currentTime);
         this.masterGain.connect(this.ctx.destination);
 
-        this.initAmbientNoiseChain();
+        if (this.isAmbientEnabled && !this.isMuted) {
+          this.initAmbientNoiseChain();
+        }
       }
       if (this.ctx.state === 'suspended') {
         await this.ctx.resume();
@@ -409,7 +415,15 @@
     }
 
     initAmbientNoiseChain() {
-      if (!this.ctx) return;
+      if (!this.ctx || !this.isAmbientEnabled || this.isMuted) return;
+
+      if (this.ambientSource) {
+        try {
+          this.ambientSource.stop();
+          this.ambientSource.disconnect();
+        } catch (e) {}
+        this.ambientSource = null;
+      }
 
       const bufferSize = this.ctx.sampleRate * 5;
       const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -430,15 +444,16 @@
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(450, this.ctx.currentTime);
 
-      this.ambientNoiseGain = this.ctx.createGain();
-      this.ambientNoiseGain.gain.setValueAtTime(
-        this.isAmbientEnabled ? this.ambientVolume : 0.0001,
-        this.ctx.currentTime
-      );
+      if (!this.ambientNoiseGain) {
+        this.ambientNoiseGain = this.ctx.createGain();
+        this.ambientNoiseGain.connect(this.ctx.destination);
+      }
+
+      this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.ambientNoiseGain.gain.setValueAtTime(this.ambientVolume, this.ctx.currentTime);
 
       this.ambientSource.connect(filter);
       filter.connect(this.ambientNoiseGain);
-      this.ambientNoiseGain.connect(this.ctx.destination);
       this.ambientSource.start(0);
     }
 
@@ -446,10 +461,36 @@
       if (volume !== null) this.ambientVolume = volume;
       this.isAmbientEnabled = enabled;
 
-      if (this.ambientNoiseGain && this.ctx) {
-        const targetVol = this.isAmbientEnabled ? this.ambientVolume : 0.0001;
-        this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
-        this.ambientNoiseGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.1);
+      if (!enabled || this.isMuted) {
+        if (this.ambientNoiseGain && this.ctx) {
+          this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.ambientNoiseGain.gain.setValueAtTime(0, this.ctx.currentTime);
+        }
+        if (this.ambientSource) {
+          try {
+            this.ambientSource.stop();
+            this.ambientSource.disconnect();
+          } catch (e) {}
+          this.ambientSource = null;
+        }
+        return;
+      }
+
+      this.ensureContext().then(() => {
+        if (!this.isAmbientEnabled || this.isMuted) return;
+        this.initAmbientNoiseChain();
+      });
+    }
+
+    setMasterMute(isMuted) {
+      this.isMuted = isMuted;
+      if (this.masterGain && this.ctx) {
+        this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.masterGain.gain.setValueAtTime(isMuted ? 0 : this.volume, this.ctx.currentTime);
+      }
+      if (isMuted) {
+        this.stop();
+        this.setAmbientNoise(false);
       }
     }
 
@@ -463,13 +504,14 @@
 
     setVolume(vol) {
       this.volume = Math.max(0, Math.min(1, vol));
-      if (this.masterGain && this.ctx) {
+      if (this.masterGain && this.ctx && !this.isMuted) {
         this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
       }
     }
 
     stop() {
       this.currentSessionId++;
+      this.previewSessionId++;
       this.isPlaying = false;
 
       if (this.currentOsc) {
@@ -483,10 +525,17 @@
       if (this.currentGain) {
         try {
           this.currentGain.gain.cancelScheduledValues(this.ctx?.currentTime || 0);
-          this.currentGain.gain.setValueAtTime(0.0001, this.ctx?.currentTime || 0);
+          this.currentGain.gain.setValueAtTime(0, this.ctx?.currentTime || 0);
           this.currentGain.disconnect();
         } catch (e) {}
         this.currentGain = null;
+      }
+
+      if (this.ambientNoiseGain && this.ctx) {
+        try {
+          this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.ambientNoiseGain.gain.setValueAtTime(0, this.ctx.currentTime);
+        } catch (e) {}
       }
 
       if (this.onSymbolInactive) this.onSymbolInactive();
@@ -495,9 +544,10 @@
     }
 
     async playTone(durationSeconds, sessionId) {
+      if (this.isMuted) return;
       if (this.currentSessionId !== sessionId) return;
       await this.ensureContext();
-      if (this.currentSessionId !== sessionId) return;
+      if (this.isMuted || this.currentSessionId !== sessionId) return;
 
       return new Promise((resolve) => {
         const now = this.ctx.currentTime;
@@ -640,12 +690,14 @@
      * 绝不影响主界面正在练习的题目、不改变播放按钮文案、不触发全局onStateChange
      */
     async previewSequence(events) {
+      if (this.isMuted) return;
       await this.ensureContext();
+      if (this.isMuted) return;
       const prevId = ++this.previewSessionId;
 
       try {
         for (const event of events) {
-          if (this.previewSessionId !== prevId) break;
+          if (this.previewSessionId !== prevId || this.isMuted) break;
 
           const baseDuration = (this.unitTime * event.durationUnits) / this.speedRatio;
           if (event.type === 'dot' || event.type === 'dash') {
@@ -658,9 +710,9 @@
     }
 
     async playPreviewTone(durationSeconds, prevId) {
-      if (this.previewSessionId !== prevId) return;
+      if (this.isMuted || this.previewSessionId !== prevId) return;
       await this.ensureContext();
-      if (this.previewSessionId !== prevId) return;
+      if (this.isMuted || this.previewSessionId !== prevId) return;
 
       return new Promise((resolve) => {
         const now = this.ctx.currentTime;
@@ -698,7 +750,7 @@
         osc.stop(now + safeDuration);
 
         const checkTimer = setInterval(() => {
-          if (this.previewSessionId !== prevId) {
+          if (this.previewSessionId !== prevId || this.isMuted) {
             clearInterval(checkTimer);
             try { osc.stop(0); } catch (e) {}
             cleanup();
@@ -711,7 +763,7 @@
       return new Promise((resolve) => {
         const timer = setTimeout(resolve, ms);
         const checkTimer = setInterval(() => {
-          if (this.previewSessionId !== prevId) {
+          if (this.previewSessionId !== prevId || this.isMuted) {
             clearTimeout(timer);
             clearInterval(checkTimer);
             resolve();
@@ -721,7 +773,9 @@
     }
 
     async playKeypadClick() {
+      if (this.isMuted) return;
       await this.ensureContext();
+      if (this.isMuted) return;
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -741,7 +795,9 @@
     }
 
     async playSuccessSound() {
+      if (this.isMuted) return;
       await this.ensureContext();
+      if (this.isMuted) return;
       const now = this.ctx.currentTime;
 
       const osc1 = this.ctx.createOscillator();
@@ -768,7 +824,9 @@
     }
 
     async playErrorSound() {
+      if (this.isMuted) return;
       await this.ensureContext();
+      if (this.isMuted) return;
       const now = this.ctx.currentTime;
 
       for (let i = 0; i < 2; i++) {
@@ -1008,6 +1066,12 @@
       this.scriptProcessor.onaudioprocess = (e) => {
         if (!this.isRunning) return;
         const channelData = e.inputBuffer ? e.inputBuffer.getChannelData(0) : null;
+        // 必须将 outputBuffer 彻底清零，杜绝任何输入音频泄漏到输出端形成自激声学反馈或环路串扰
+        if (e.outputBuffer) {
+          for (let c = 0; c < e.outputBuffer.numberOfChannels; c++) {
+            e.outputBuffer.getChannelData(c).fill(0);
+          }
+        }
         this.analyzeFrame(performance.now(), channelData);
       };
 
@@ -1032,26 +1096,42 @@
     }
 
     /**
-     * 宽带全谱扫描 (100Hz ~ 2500Hz)，自动探测纯音共振峰并计算尖锐度 (Peakiness)
+     * 宽带纯音扫描 (500Hz ~ 2200Hz 真实三角洲电报频带)，依托 CA-CFAR 守卫频带差分杜绝低频轰鸣与白噪误锁
      */
     detectDominantFrequency(pcm, sampleRate = 48000) {
-      let maxE = 0;
+      let maxContrast = 0;
       let bestF = this.targetFreq;
+      let maxE = 0;
       let totalE = 0;
       let count = 0;
 
-      for (let f = 100; f <= 2500; f += 25) {
+      // 三角洲行动真实密码蜂鸣频率集中在 500Hz ~ 2200Hz (航天/绝密 1570Hz, 标准 1000Hz, 零号/长弓 750Hz, 巴克什 600Hz)
+      // 避开 100~400Hz 常见枪炮重低音、脚步轰鸣、电脑风扇与 50/60Hz 工频交流声
+      for (let f = 500; f <= 2200; f += 25) {
         const e = this.calcToneEnergy(pcm, f, sampleRate);
         totalE += e;
         count++;
-        if (e > maxE) {
+
+        // 守卫频带能量估算 (检测该频点是否为孤立纯音尖峰)
+        const guardOffset = Math.max(80, Math.min(180, f * 0.12));
+        const guardE = (this.calcToneEnergy(pcm, Math.max(50, f - guardOffset), sampleRate) + 
+                        this.calcToneEnergy(pcm, f + guardOffset, sampleRate)) / 2;
+        const contrast = e / (guardE + 0.0001);
+
+        if (e > 0.0035 && contrast >= 2.6) {
+          const score = contrast * e;
+          if (score > maxContrast) {
+            maxContrast = score;
+            bestF = f;
+            maxE = e;
+          }
+        } else if (e > maxE) {
           maxE = e;
-          bestF = f;
         }
       }
       const avgE = totalE / count;
       const peakiness = maxE / (avgE + 0.00001);
-      return { freq: bestF, energy: maxE, peakiness };
+      return { freq: bestF, energy: maxE, peakiness, hasPureTone: maxContrast > 0 && peakiness >= 3.2 };
     }
 
     setTargetFrequency(freq, isAuto = false) {
@@ -1176,81 +1256,102 @@
 
       // 1. 纯音载波智能探测与平顶能量计算
       let toneAmp = 0;
+      let spectralContrast = 1.0;
 
       if (pcm && pcm.length > 0) {
         if (this.autoTracking) {
-          // 若长时间无信号 (>2500ms)，释放载波锁定重新进行全频段宽带扫描
-          if (this.isCarrierLocked && (now - this.lastCarrierTime > 2500) && (now - this.highStartTime > 2500)) {
+          // 若长时间无信号 (>2200ms)，释放载波锁定重新进行全频段宽带扫描
+          if (this.isCarrierLocked && (now - this.lastCarrierTime > 2200) && (now - this.highStartTime > 2200)) {
             this.isCarrierLocked = false;
           }
 
           if (!this.isCarrierLocked) {
-            // 未锁定状态：全频宽带扫描纯音共振载波 (550Hz ~ 1750Hz)
+            // 未锁定状态：全频宽带扫描纯音共振载波 (500Hz ~ 2200Hz)
             const scan = this.detectDominantFrequency(pcm, sr);
-            // peakiness >= 2.6 且能量高于底噪 1.6 倍，确定为电报蜂鸣纯音
-            if (scan.peakiness >= 2.6 && scan.energy > this.noiseFloor * 1.6 && scan.energy > 0.002) {
+            if (scan.hasPureTone && scan.energy > this.noiseFloor * 1.8 && scan.energy > 0.0035) {
               this.targetFreq = scan.freq;
               this.detectedFreq = scan.freq;
               this.isCarrierLocked = true;
               this.lastCarrierTime = now;
-              toneAmp = scan.energy; // 瞬间在当前首帧咬合，杜绝丢音
+              toneAmp = scan.energy; // 瞬间首帧咬合
             } else {
-              // 平顶多点监测当前目标频点 (±35Hz)
-              const fLow = Math.max(20, this.targetFreq - 35);
+              // 平顶多点监测当前目标频点 (±30Hz)
+              const fLow = Math.max(30, this.targetFreq - 30);
               toneAmp = Math.max(
                 this.calcToneEnergy(pcm, fLow, sr),
                 this.calcToneEnergy(pcm, this.targetFreq, sr),
-                this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+                this.calcToneEnergy(pcm, this.targetFreq + 30, sr)
               );
             }
           } else {
-            // 已锁定状态：三点平顶滤波器跟踪锁定载波 (容忍 ±35Hz 微偏与混响)
-            const fLow = Math.max(20, this.targetFreq - 35);
+            // 已锁定状态：三点平顶滤波器跟踪锁定载波 (容忍 ±30Hz 微偏与混响)
+            const fLow = Math.max(30, this.targetFreq - 30);
             toneAmp = Math.max(
               this.calcToneEnergy(pcm, fLow, sr),
               this.calcToneEnergy(pcm, this.targetFreq, sr),
-              this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+              this.calcToneEnergy(pcm, this.targetFreq + 30, sr)
             );
-            if (toneAmp > this.noiseFloor * 1.8) {
-              this.lastCarrierTime = now;
-            }
           }
         } else {
           // 手动模式：三点平顶滤波器聚焦用户设定频点
-          const fLow = Math.max(20, this.targetFreq - 35);
+          const fLow = Math.max(30, this.targetFreq - 30);
           toneAmp = Math.max(
             this.calcToneEnergy(pcm, fLow, sr),
             this.calcToneEnergy(pcm, this.targetFreq, sr),
-            this.calcToneEnergy(pcm, this.targetFreq + 35, sr)
+            this.calcToneEnergy(pcm, this.targetFreq + 30, sr)
           );
+        }
+
+        // 计算当前中心频点邻近守卫频带的背景底噪强度 (CA-CFAR)
+        const guardOffset = Math.max(80, Math.min(200, this.targetFreq * 0.12));
+        const guardE = (this.calcToneEnergy(pcm, Math.max(40, this.targetFreq - guardOffset), sr) +
+                        this.calcToneEnergy(pcm, this.targetFreq + guardOffset, sr)) / 2;
+        spectralContrast = toneAmp / (guardE + 0.0001);
+
+        if (this.isCarrierLocked && toneAmp > this.noiseFloor * 1.6 && spectralContrast >= 1.5) {
+          this.lastCarrierTime = now;
         }
       } else {
         // 降级使用 FFT 分析器
         const nyquist = sr / 2;
         const bin = Math.round((this.targetFreq / nyquist) * this.freqData.length);
         toneAmp = (this.freqData[bin] || 0) / 255.0;
+        spectralContrast = 2.0;
       }
 
-      // 2. 动态底噪与蜂鸣峰值自适应跟踪 (Leaky Integrator / AGC)
-      if (toneAmp < this.noiseFloor * 1.5) {
-        // 静音平缓期：底噪缓慢向当前平底收敛
-        this.noiseFloor = this.noiseFloor * 0.96 + toneAmp * 0.04;
+      // 2. 动态底噪与蜂鸣峰值自适应跟踪 (Leaky Integrator / CA-CFAR)
+      // 判定当前帧是否属于背景声音 (低对比度、宽带噪音或能量偏低)
+      const isBackgroundSound = spectralContrast < 1.65 || toneAmp < this.noiseFloor * 1.4;
+
+      if (isBackgroundSound) {
+        if (toneAmp > this.noiseFloor) {
+          // 背景环境声音偏大 (游戏背景音、风噪、麦克风交流声)：平滑向上跟随，防止将背景音误认为信号
+          this.noiseFloor = this.noiseFloor * 0.96 + toneAmp * 0.04;
+        } else {
+          // 背景声音减弱：平滑向下收敛
+          this.noiseFloor = this.noiseFloor * 0.90 + toneAmp * 0.10;
+        }
       } else if (toneAmp > this.signalPeak) {
-        // 突发蜂鸣：快速跟随峰值
+        // 真实纯音突发蜂鸣：快速跟随峰值
         this.signalPeak = toneAmp;
       } else {
         // 适度衰减峰值 (防止单次按键过响导致后续无法触发)
         this.signalPeak = this.signalPeak * 0.985 + toneAmp * 0.015;
       }
-      this.noiseFloor = Math.max(0.0003, Math.min(0.05, this.noiseFloor));
-      this.signalPeak = Math.max(this.noiseFloor * 2.0, this.signalPeak);
 
-      // 3. 自适应滞后阈值 (Schmitt Trigger)
+      this.noiseFloor = Math.max(0.0003, Math.min(0.08, this.noiseFloor));
+      this.signalPeak = Math.max(this.noiseFloor * 1.8, this.signalPeak);
+
+      // 3. 自适应滞后阈值 (Schmitt Trigger + 纯音凸起度门限)
       const span = this.signalPeak - this.noiseFloor;
       const dynamicHigh = this.noiseFloor + span * this.sensitivityMultiplier;
-      const dynamicLow = this.noiseFloor + span * (this.sensitivityMultiplier * 0.48);
+      const dynamicLow = this.noiseFloor + span * (this.sensitivityMultiplier * 0.45);
+      const minContrast = 1.35 + (1.0 - this.sensitivityMultiplier) * 0.7; // ~1.5 to ~2.0
 
-      if (!this.isSignalHigh && toneAmp >= dynamicHigh) {
+      const isToneHigh = (toneAmp >= dynamicHigh) && (spectralContrast >= minContrast);
+      const isToneLow = (toneAmp < dynamicLow) || (spectralContrast < 1.25);
+
+      if (!this.isSignalHigh && isToneHigh) {
         // 信号由低变高 (蜂鸣开始)
         const silenceDuration = now - this.lowStartTime;
         this.handleSilenceEnd(silenceDuration);
@@ -1265,7 +1366,7 @@
         this.isSignalHigh = true;
         this.highStartTime = now;
         this.lastStateChangeTime = now;
-      } else if (this.isSignalHigh && toneAmp < dynamicLow) {
+      } else if (this.isSignalHigh && isToneLow) {
         // 信号由高变低 (蜂鸣结束)
         const toneDuration = now - this.highStartTime;
         this.handleToneEnd(toneDuration);
@@ -1875,6 +1976,19 @@
       // 切换 Tab 时彻底停止正在发声的练习音频，杜绝声音重叠
       audioEngine.stop();
       this.currentMode = mode;
+
+      if (mode === 'audioDecoder') {
+        // 实时听音模式：网页自身必须保持 100% 绝对无线电静默！杜绝自身发声被麦克风或系统内录拾取产生自激回声
+        audioEngine.setMasterMute(true);
+        audioEngine.setAmbientNoise(false);
+        if (this.dom.switchAmbient) this.dom.switchAmbient.checked = false;
+        if (this.dom.ambientControlRow) this.dom.ambientControlRow.style.display = 'none';
+      } else {
+        audioEngine.setMasterMute(false);
+        if (this.decoder && this.decoder.isRunning) {
+          this.decoder.stop();
+        }
+      }
 
       if (this.dom.tabHome) this.dom.tabHome.classList.toggle('active', mode === 'home');
       if (this.dom.tabDailyPasswords) this.dom.tabDailyPasswords.classList.toggle('active', mode === 'dailyPasswords');
@@ -2942,8 +3056,12 @@
       if (this.dom.btnStartSystemAudio) {
         this.dom.btnStartSystemAudio.addEventListener('click', async () => {
           try {
+            audioEngine.setMasterMute(true);
+            audioEngine.setAmbientNoise(false);
+            if (this.dom.switchAmbient) this.dom.switchAmbient.checked = false;
+            if (this.dom.ambientControlRow) this.dom.ambientControlRow.style.display = 'none';
             await this.decoder.startSystemAudio();
-            this.showToast('🖥️ 已接入系统音频内录，请切入游戏靠近密码门！');
+            this.showToast('🖥️ 已接入系统音频内录，网页已自动禁音，请靠近密码门！');
           } catch (err) {
             this.showToast(`❌ 接入失败: ${err.message}`, 4000);
           }
@@ -2953,8 +3071,12 @@
       if (this.dom.btnStartMicAudio) {
         this.dom.btnStartMicAudio.addEventListener('click', async () => {
           try {
+            audioEngine.setMasterMute(true);
+            audioEngine.setAmbientNoise(false);
+            if (this.dom.switchAmbient) this.dom.switchAmbient.checked = false;
+            if (this.dom.ambientControlRow) this.dom.ambientControlRow.style.display = 'none';
             await this.decoder.startMicrophone();
-            this.showToast('🎙️ 已开启麦克风监听，请将设备对准扬声器！');
+            this.showToast('🎙️ 已开启麦克风监听，网页已自动禁音，请将设备对准扬声器！');
           } catch (err) {
             this.showToast(`❌ 麦克风开启失败: ${err.message}`, 4000);
           }

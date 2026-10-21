@@ -19,6 +19,9 @@ class TacticalAudioEngine {
     this.ambientVolume = 0.15;
     this.isAmbientEnabled = false;
 
+    // 网页全局静音控制 (听音破译时强制无线电静默，杜绝回声与自激)
+    this.isMuted = false;
+
     // 排他任务会话控制 (绝对杜绝声音重叠与双重光标)
     this.currentSessionId = 0;
     this.previewSessionId = 0;   // 独立小抄预览会话ID，互不干扰
@@ -44,10 +47,13 @@ class TacticalAudioEngine {
       this.ctx = new AudioCtx();
 
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+      const initialVol = this.isMuted ? 0 : this.volume;
+      this.masterGain.gain.setValueAtTime(initialVol, this.ctx.currentTime);
       this.masterGain.connect(this.ctx.destination);
 
-      this.initAmbientNoiseChain();
+      if (this.isAmbientEnabled && !this.isMuted) {
+        this.initAmbientNoiseChain();
+      }
     }
     if (this.ctx.state === 'suspended') {
       await this.ctx.resume();
@@ -55,10 +61,19 @@ class TacticalAudioEngine {
   }
 
   /**
-   * 初始化战场环境底噪合成器
+   * 初始化战场环境底噪合成器 (仅在用户显式开启且未静音时才启动)
    */
   initAmbientNoiseChain() {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.isAmbientEnabled || this.isMuted) return;
+
+    // 若已存在正在运行的源，先清理
+    if (this.ambientSource) {
+      try {
+        this.ambientSource.stop();
+        this.ambientSource.disconnect();
+      } catch (e) {}
+      this.ambientSource = null;
+    }
 
     const bufferSize = this.ctx.sampleRate * 5;
     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -79,15 +94,16 @@ class TacticalAudioEngine {
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(450, this.ctx.currentTime);
 
-    this.ambientNoiseGain = this.ctx.createGain();
-    this.ambientNoiseGain.gain.setValueAtTime(
-      this.isAmbientEnabled ? this.ambientVolume : 0.0001,
-      this.ctx.currentTime
-    );
+    if (!this.ambientNoiseGain) {
+      this.ambientNoiseGain = this.ctx.createGain();
+      this.ambientNoiseGain.connect(this.ctx.destination);
+    }
+
+    this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.ambientNoiseGain.gain.setValueAtTime(this.ambientVolume, this.ctx.currentTime);
 
     this.ambientSource.connect(filter);
     filter.connect(this.ambientNoiseGain);
-    this.ambientNoiseGain.connect(this.ctx.destination);
     this.ambientSource.start(0);
   }
 
@@ -95,10 +111,40 @@ class TacticalAudioEngine {
     if (volume !== null) this.ambientVolume = volume;
     this.isAmbientEnabled = enabled;
 
-    if (this.ambientNoiseGain && this.ctx) {
-      const targetVol = this.isAmbientEnabled ? this.ambientVolume : 0.0001;
-      this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.ambientNoiseGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.1);
+    if (!enabled || this.isMuted) {
+      if (this.ambientNoiseGain && this.ctx) {
+        this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.ambientNoiseGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      }
+      if (this.ambientSource) {
+        try {
+          this.ambientSource.stop();
+          this.ambientSource.disconnect();
+        } catch (e) {}
+        this.ambientSource = null;
+      }
+      return;
+    }
+
+    // enabled === true && !this.isMuted
+    this.ensureContext().then(() => {
+      if (!this.isAmbientEnabled || this.isMuted) return;
+      this.initAmbientNoiseChain();
+    });
+  }
+
+  /**
+   * 全局硬件禁音开关 (听音解码期间保持绝对无线电静默)
+   */
+  setMasterMute(isMuted) {
+    this.isMuted = isMuted;
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(isMuted ? 0 : this.volume, this.ctx.currentTime);
+    }
+    if (isMuted) {
+      this.stop();
+      this.setAmbientNoise(false);
     }
   }
 
@@ -112,7 +158,7 @@ class TacticalAudioEngine {
 
   setVolume(vol) {
     this.volume = Math.max(0, Math.min(1, vol));
-    if (this.masterGain && this.ctx) {
+    if (this.masterGain && this.ctx && !this.isMuted) {
       this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
     }
   }
@@ -122,6 +168,7 @@ class TacticalAudioEngine {
    */
   stop() {
     this.currentSessionId++;
+    this.previewSessionId++;
     this.isPlaying = false;
 
     // 强行切断当前发声音频节点
@@ -136,10 +183,18 @@ class TacticalAudioEngine {
     if (this.currentGain) {
       try {
         this.currentGain.gain.cancelScheduledValues(this.ctx?.currentTime || 0);
-        this.currentGain.gain.setValueAtTime(0.0001, this.ctx?.currentTime || 0);
+        this.currentGain.gain.setValueAtTime(0, this.ctx?.currentTime || 0);
         this.currentGain.disconnect();
       } catch (e) {}
       this.currentGain = null;
+    }
+
+    // 同时静音切断战场环境底噪
+    if (this.ambientNoiseGain && this.ctx) {
+      try {
+        this.ambientNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.ambientNoiseGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      } catch (e) {}
     }
 
     if (this.onSymbolInactive) this.onSymbolInactive();
@@ -151,9 +206,10 @@ class TacticalAudioEngine {
    * 播放单次蜂鸣音（支持被 stop() 瞬间中断）
    */
   async playTone(durationSeconds, sessionId) {
+    if (this.isMuted) return;
     if (this.currentSessionId !== sessionId) return;
     await this.ensureContext();
-    if (this.currentSessionId !== sessionId) return;
+    if (this.isMuted || this.currentSessionId !== sessionId) return;
 
     return new Promise((resolve) => {
       const now = this.ctx.currentTime;
@@ -306,12 +362,14 @@ class TacticalAudioEngine {
    * 播放完自己停止，完全不触发 onStateChange，不改变主界面播放按钮文案，不影响轮次状态
    */
   async previewSequence(events) {
+    if (this.isMuted) return;
     await this.ensureContext();
+    if (this.isMuted) return;
     const prevId = ++this.previewSessionId;
 
     try {
       for (const event of events) {
-        if (this.previewSessionId !== prevId) break;
+        if (this.previewSessionId !== prevId || this.isMuted) break;
 
         const baseDuration = (this.unitTime * event.durationUnits) / this.speedRatio;
         if (event.type === 'dot' || event.type === 'dash') {
@@ -324,9 +382,9 @@ class TacticalAudioEngine {
   }
 
   async playPreviewTone(durationSeconds, prevId) {
-    if (this.previewSessionId !== prevId) return;
+    if (this.isMuted || this.previewSessionId !== prevId) return;
     await this.ensureContext();
-    if (this.previewSessionId !== prevId) return;
+    if (this.isMuted || this.previewSessionId !== prevId) return;
 
     return new Promise((resolve) => {
       const now = this.ctx.currentTime;
@@ -364,7 +422,7 @@ class TacticalAudioEngine {
       osc.stop(now + safeDuration);
 
       const checkTimer = setInterval(() => {
-        if (this.previewSessionId !== prevId) {
+        if (this.previewSessionId !== prevId || this.isMuted) {
           clearInterval(checkTimer);
           try { osc.stop(0); } catch (e) {}
           cleanup();
@@ -377,7 +435,7 @@ class TacticalAudioEngine {
     return new Promise((resolve) => {
       const timer = setTimeout(resolve, ms);
       const checkTimer = setInterval(() => {
-        if (this.previewSessionId !== prevId) {
+        if (this.previewSessionId !== prevId || this.isMuted) {
           clearTimeout(timer);
           clearInterval(checkTimer);
           resolve();
@@ -387,7 +445,9 @@ class TacticalAudioEngine {
   }
 
   async playKeypadClick() {
+    if (this.isMuted) return;
     await this.ensureContext();
+    if (this.isMuted) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -407,7 +467,9 @@ class TacticalAudioEngine {
   }
 
   async playSuccessSound() {
+    if (this.isMuted) return;
     await this.ensureContext();
+    if (this.isMuted) return;
     const now = this.ctx.currentTime;
 
     const osc1 = this.ctx.createOscillator();
@@ -434,7 +496,9 @@ class TacticalAudioEngine {
   }
 
   async playErrorSound() {
+    if (this.isMuted) return;
     await this.ensureContext();
+    if (this.isMuted) return;
     const now = this.ctx.currentTime;
 
     for (let i = 0; i < 2; i++) {
